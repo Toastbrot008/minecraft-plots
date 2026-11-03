@@ -3,230 +3,354 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c2430">
 <title>EL-SMP Gebiete</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,500..800&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+/* Liquid-Glass-Design: Karte über den ganzen Bildschirm, alles andere schwebt als Glas darüber.
+   Die alten Variablennamen (--panel, --panel2, --line, --gold …) bleiben, weil das Skript sie in Inline-Styles nutzt. */
 :root{
-  --bg:#E7ECEE; --panel:#FFFFFF; --panel2:#F3F6F7; --line:#D2DADE; --ink:#1B2430; --muted:#5A6774;
-  --gold:#F4C04E; --gold-ink:#8A5A00; --ok:#2E8B57; --bad:#C2412D; --mapbg:#C9D3D8;
-  --shadow:0 1px 0 rgba(27,36,48,.06), 0 8px 24px -12px rgba(27,36,48,.25);
-  --display:"Bricolage Grotesque", "Avenir Next Condensed", "Arial Narrow", system-ui, sans-serif;
-  --body:"Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, sans-serif;
-  color-scheme: light;
-  box-sizing:border-box;
-  padding-top:env(safe-area-inset-top,0px);
-  padding-bottom:env(safe-area-inset-bottom,0px);
+  --accent:#0A84FF; --ink:#1D1D1F; --muted:rgba(60,60,67,.62); --line:rgba(60,60,67,.13);
+  --glass:rgba(250,250,252,.34); --glass-strong:rgba(250,250,252,.5);
+  --edge:rgba(255,255,255,.75); --hi:rgba(255,255,255,.9); --sheen:rgba(255,255,255,.42);
+  --fill:rgba(120,120,128,.12); --fill2:rgba(120,120,128,.2); --sel:rgba(255,255,255,.72);
+  --shadow:0 12px 40px -10px rgba(0,0,0,.32), 0 2px 6px rgba(0,0,0,.08);
+  --panel:rgba(250,250,252,.9); --panel2:var(--fill); --bg:#1c2430;
+  --gold:#F4C04E; --gold-ink:#9A6700; --ok:#30D158; --bad:#FF453A; --bad-ink:#D70015; --mapbg:#1c2430;
+  --display:-apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, "Segoe UI", system-ui, sans-serif;
+  --body:-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", system-ui, sans-serif;
+  --blur:blur(30px) saturate(190%);
+  --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#18212C; --panel:#202B38; --panel2:#263343; --line:#334356; --ink:#EDF1E9; --muted:#9AA8B5;
-    --gold:#F4C04E; --gold-ink:#F4C04E; --ok:#5CC48A; --bad:#F07A63; --mapbg:#121A23;
-    --shadow:0 1px 0 rgba(0,0,0,.2), 0 10px 30px -14px rgba(0,0,0,.6);
-    color-scheme: dark;
+    --ink:#F5F5F7; --muted:rgba(235,235,245,.6); --line:rgba(255,255,255,.1);
+    --glass:rgba(30,30,34,.3); --glass-strong:rgba(30,30,34,.46);
+    --edge:rgba(255,255,255,.14); --hi:rgba(255,255,255,.2); --sheen:rgba(255,255,255,.08);
+    --fill:rgba(120,120,128,.22); --fill2:rgba(120,120,128,.32); --sel:rgba(255,255,255,.16);
+    --shadow:0 14px 44px -10px rgba(0,0,0,.65), 0 2px 6px rgba(0,0,0,.3);
+    --panel:rgba(34,34,38,.92); --gold-ink:#F4C04E; --bad-ink:#FF6961; color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#18212C; --panel:#202B38; --panel2:#263343; --line:#334356; --ink:#EDF1E9; --muted:#9AA8B5;
-  --gold:#F4C04E; --gold-ink:#F4C04E; --ok:#5CC48A; --bad:#F07A63; --mapbg:#121A23;
-  --shadow:0 1px 0 rgba(0,0,0,.2), 0 10px 30px -14px rgba(0,0,0,.6);
-  color-scheme: dark;
+  --ink:#F5F5F7; --muted:rgba(235,235,245,.6); --line:rgba(255,255,255,.1);
+  --glass:rgba(30,30,34,.3); --glass-strong:rgba(30,30,34,.46);
+  --edge:rgba(255,255,255,.14); --hi:rgba(255,255,255,.2); --sheen:rgba(255,255,255,.08);
+  --fill:rgba(120,120,128,.22); --fill2:rgba(120,120,128,.32); --sel:rgba(255,255,255,.16);
+  --shadow:0 14px 44px -10px rgba(0,0,0,.65), 0 2px 6px rgba(0,0,0,.3);
+  --panel:rgba(34,34,38,.92); --gold-ink:#F4C04E; --bad-ink:#FF6961; color-scheme:dark;
 }
-*,*::before,*::after{box-sizing:inherit}
-html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
-body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:16px/1.5 var(--body);-webkit-font-smoothing:antialiased}
-button,input,select,textarea{font:inherit;color:inherit}
-:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;overflow:hidden;background:var(--mapbg);color:var(--ink);font:15px/1.45 var(--body);letter-spacing:-.011em;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+button{-webkit-tap-highlight-color:transparent}
+/* Kein blinkender Text-Cursor und kein I-Balken auf normalem Text, nur in Eingabefeldern */
+body{caret-color:transparent;cursor:default}
+input,textarea,select,[contenteditable]{caret-color:var(--accent);cursor:text}
+input[type=checkbox],select{cursor:pointer}
+.top,.corner,.mapctl,.tabs,.banner,.coords,.toast,.btn,.tab,.item,.tag{-webkit-user-select:none;user-select:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-.shell{display:grid;grid-template-rows:auto 1fr;height:100%;min-height:0}
+/* ---------- Glas ---------- */
+.glass,.dlg,.gatebox{
+  background-color:var(--glass);
+  background-image:linear-gradient(150deg, var(--sheen), transparent 45%);
+  -webkit-backdrop-filter:var(--blur); backdrop-filter:var(--blur);
+  border:1px solid var(--edge);
+  box-shadow:var(--shadow), inset 0 1px 0 var(--hi);
+}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){ .glass,.dlg,.gatebox{background-color:var(--glass-strong)} }
+@media (prefers-reduced-transparency: reduce){ .glass,.dlg,.gatebox{background-color:var(--glass-strong)} }
 
-/* top bar */
-.top{display:flex;align-items:center;gap:20px;padding:14px 22px;border-bottom:1px solid var(--line);background:var(--panel)}
-.mark{width:38px;height:38px;flex:none;border-radius:9px;background:var(--gold);display:grid;place-items:center;box-shadow:inset 0 -3px 0 rgba(0,0,0,.18)}
-.mark svg{width:22px;height:22px}
-.titles{min-width:0}
-.titles h1{margin:0;font:800 1.45rem/1.05 var(--display);font-stretch:85%;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.titles p{margin:2px 0 0;color:var(--muted);font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.countdown{margin-left:auto;display:flex;align-items:baseline;gap:8px;white-space:nowrap}
-.countdown b{font:800 2rem/1 var(--display);font-stretch:80%;font-variant-numeric:tabular-nums}
-.countdown span{color:var(--muted);font-size:.9rem}
-.status{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;font-weight:700;font-size:.85rem;background:var(--panel2);border:1px solid var(--line);white-space:nowrap}
-.status i{width:9px;height:9px;border-radius:50%;background:var(--ok)}
-.status.closed i{background:var(--bad)}
-
-/* main */
-.app{display:grid;grid-template-columns:minmax(0,1fr) 390px;min-height:0}
-.mapwrap{position:relative;background:var(--mapbg);overflow:hidden;min-height:0;touch-action:none}
+/* ---------- Karte über den ganzen Bildschirm ---------- */
+.shell[hidden]{display:none}
+.shell{position:fixed;inset:0}
+.app{display:contents}
+.mapwrap{position:fixed;inset:0;background:var(--mapbg);overflow:hidden;touch-action:none}
 #map{display:block;width:100%;height:100%;cursor:grab;user-select:none;-webkit-user-select:none}
 #map.dragging{cursor:grabbing}
 #map.placing{cursor:crosshair}
 .mapimg,#ttiles image{image-rendering:pixelated}
 #terrain[hidden],#ttiles[hidden]{display:none}
-.coords .blk{opacity:.85;margin-left:10px}
-.plot-fill{fill-opacity:.24;stroke:none;transition:fill-opacity .15s}
+.plot-fill{fill-opacity:.22;stroke:none;transition:fill-opacity .2s}
 .plot.sel .plot-fill{fill-opacity:.42}
 .plot.pending .plot-fill{fill-opacity:.12}
-.plot-halo{fill:none;stroke:#fff;stroke-opacity:.6;stroke-width:5;stroke-linejoin:round}
-.plot-line{fill:none;stroke-width:2.4;stroke-dasharray:10 5;stroke-linejoin:round;stroke-linecap:round}
+.plot-halo{fill:none;stroke:#fff;stroke-opacity:.55;stroke-width:5;stroke-linejoin:round}
+.plot-line{fill:none;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
 .plot.pending .plot-line{stroke-dasharray:2 6}
 .plot.mine .plot-halo{stroke:var(--gold);stroke-width:7;stroke-opacity:1}
 .plot.overlap .plot-halo{stroke:var(--bad);stroke-width:7;stroke-opacity:1}
-.labels text{font-family:var(--display);font-weight:700;font-stretch:90%;fill:#fff;stroke:rgba(16,22,30,.82);paint-order:stroke;stroke-linejoin:round;text-anchor:middle;dominant-baseline:central;pointer-events:none}
-.labels .atlas{text-transform:uppercase;letter-spacing:.16em}
-.labels .sub{font-family:var(--body);font-weight:700;font-stretch:100%;letter-spacing:0;text-transform:none}
-.spawn{fill:#fff;fill-opacity:.14;stroke:#fff;stroke-width:2;stroke-dasharray:3 6;stroke-linecap:round}
+.labels text{font-family:var(--display);font-weight:700;fill:#fff;stroke:rgba(10,14,20,.7);paint-order:stroke;stroke-linejoin:round;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.labels .atlas{letter-spacing:.02em}
+.labels .sub{font-weight:500;opacity:.9}
+.spawn{fill:#fff;fill-opacity:.12;stroke:#fff;stroke-width:1.5;stroke-dasharray:2 6;stroke-linecap:round}
 .draft-fill{fill-opacity:.3}
 .draft-line{fill:none;stroke-width:3;stroke-linejoin:round;stroke-linecap:round}
 .draft-open{stroke-dasharray:6 5}
 .draft-v{fill:#fff;stroke-width:2.5}
 .draft-v.first{stroke-width:4}
-.mapctl{position:absolute;right:14px;top:14px;display:flex;flex-direction:column;gap:6px}
-.mapctl button{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--panel);box-shadow:var(--shadow);font-size:1.2rem;font-weight:700;cursor:pointer;display:grid;place-items:center}
-.mapctl button:hover{background:var(--panel2)}
-.coords{position:absolute;left:14px;top:14px;padding:6px 10px;border-radius:8px;background:rgba(16,22,30,.72);color:#fff;font-size:.85rem;font-variant-numeric:tabular-nums;pointer-events:none}
+
+/* ---------- Kopf: schwebende Pille oben links ---------- */
+.top{position:fixed;left:14px;top:calc(14px + var(--safe-t));display:flex;align-items:center;gap:11px;padding:8px 16px 8px 8px;border-radius:22px;max-width:calc(100vw - 200px);z-index:5}
+.mark{width:34px;height:34px;flex:none;border-radius:12px;background:linear-gradient(160deg,#FFD978,#F0B132);display:grid;place-items:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 2px 6px rgba(240,177,50,.35)}
+.mark svg{width:18px;height:18px}
+.titles{min-width:0}
+.titles h1{margin:0;font-size:15px;font-weight:650;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.titles #subtitle{display:none}
+.hud-sub{display:flex;align-items:center;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden}
+.status{display:inline-flex;align-items:center;gap:6px;flex:none}
+.status i{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent)}
+.status.closed i{background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 25%,transparent)}
+.countdown{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.countdown:not(:empty)::before{content:"·";margin:0 7px}
+.countdown b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums;margin-right:.28em}
+
+/* Konto oben rechts, darunter die Zoom-Knöpfe */
+.corner{position:fixed;right:14px;top:calc(14px + var(--safe-t));display:flex;flex-direction:column;align-items:flex-end;gap:10px;z-index:5}
+#authBtn{height:40px;padding:0 16px 0 6px;border-radius:999px;font-weight:600;font-size:13.5px;gap:8px;max-width:180px;background-color:var(--glass)}
+#authBtn::before{content:"";width:28px;height:28px;flex:none;border-radius:50%;background:linear-gradient(160deg,#64D2FF,#0A84FF) center/16px no-repeat;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='8' r='4'/%3E%3Cpath d='M4 21a8 8 0 0 1 16 0'/%3E%3C/svg%3E"),linear-gradient(160deg,#64D2FF,#0A84FF)}
+#authBtn:empty{display:none}
+.mapctl{position:fixed;left:14px;top:calc(76px + var(--safe-t));display:flex;flex-direction:column;border-radius:22px;padding:4px;z-index:5}
+.mapctl button{width:38px;height:38px;border:0;border-radius:50%;background:none;cursor:pointer;display:grid;place-items:center;color:var(--ink);font-size:20px;font-weight:400;line-height:1;transition:background .15s}
+.mapctl button:hover{background:var(--fill)}
+.mapctl button:active{transform:scale(.92)}
+
+.coords{position:fixed;left:14px;bottom:calc(18px + var(--safe-b));padding:6px 12px;border-radius:999px;font-size:12px;font-variant-numeric:tabular-nums;color:var(--ink);pointer-events:none;z-index:4;max-width:calc(50vw - 230px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .coords:empty{display:none}
+.coords .blk{display:none}
 
-.banner{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:min(560px,calc(100% - 90px));background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--gold);border-radius:12px;box-shadow:var(--shadow);padding:12px 14px;display:none;gap:10px;align-items:center;flex-wrap:wrap}
-.banner.on{display:flex}
-.banner p{margin:0;flex:1 1 220px;font-size:.95rem}
-.banner p small{display:block;color:var(--muted)}
-.banner .bad{color:var(--bad);font-weight:700}
-.budget{flex:1 1 100%;display:flex;align-items:center;gap:10px;font-size:.85rem;font-variant-numeric:tabular-nums}
-.budget .bar{flex:1;height:8px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);overflow:hidden}
-.budget .bar i{display:block;height:100%;width:0;background:var(--ok);transition:width .1s}
-.budget.over .bar i{background:var(--bad)}
-.budget.over b{color:var(--bad)}
-.banner .acts{display:flex;gap:6px;flex-wrap:wrap}
-
-/* panel */
-.panel{display:flex;flex-direction:column;min-height:0;background:var(--panel);border-left:1px solid var(--line)}
-.tabs{display:flex;gap:4px;padding:10px 12px 0;border-bottom:1px solid var(--line)}
-.tab{border:0;background:none;padding:10px 12px 12px;font-weight:700;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px}
-.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--gold)}
+/* ---------- Tab-Leiste unten ---------- */
+.tabs{position:fixed;left:50%;bottom:calc(16px + var(--safe-b));transform:translateX(-50%);display:flex;gap:2px;padding:5px;border-radius:999px;z-index:6;transition:opacity .25s,transform .35s cubic-bezier(.2,.9,.3,1.2)}
+.tab{display:flex;align-items:center;gap:7px;height:42px;padding:0 17px;border:0;border-radius:999px;background:none;color:var(--ink);font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap;transition:background .2s,color .2s}
+.tab svg{width:18px;height:18px;flex:none;opacity:.85}
+.tab:hover{background:var(--fill)}
+.sheet-open .tab[aria-selected="true"]{background:var(--sel);box-shadow:inset 0 1px 0 var(--hi),0 1px 4px rgba(0,0,0,.08);color:var(--accent)}
 .tab[hidden]{display:none}
-.pane{flex:1;overflow:auto;padding:18px 18px 28px;min-height:0}
+.drawing .tabs{opacity:0;transform:translate(-50%,24px);pointer-events:none}
+
+/* ---------- Seitenblatt (Inhalte der Tabs) ---------- */
+.panel{position:fixed;right:14px;top:calc(64px + var(--safe-t));width:380px;max-height:calc(100dvh - 148px - var(--safe-t) - var(--safe-b));border-radius:28px;background-color:var(--glass-strong);display:flex;flex-direction:column;overflow:hidden;z-index:4;
+  transform-origin:var(--ox,50%) var(--oy,100%);opacity:0;visibility:hidden;transform:scale(.08);pointer-events:none;
+  transition:transform .42s cubic-bezier(.32,.72,0,1),opacity .25s ease .05s,border-radius .42s,visibility 0s .42s}
+.sheet-open .panel{opacity:1;visibility:visible;transform:none;pointer-events:auto;transition:transform .5s cubic-bezier(.32,.72,0,1),opacity .18s,border-radius .5s,visibility 0s}
+.drawing .panel{opacity:0;visibility:hidden;pointer-events:none;transform:scale(.08)}
+.sheet-x{position:absolute;right:12px;top:12px;width:30px;height:30px;border-radius:50%;border:0;background:var(--fill);color:var(--muted);cursor:pointer;display:grid;place-items:center;z-index:2}
+.sheet-x:hover{background:var(--fill2);color:var(--ink)}
+.pane{flex:0 1 auto;overflow:auto;padding:20px 20px 24px;min-height:0;overscroll-behavior:contain;scrollbar-width:thin}
 .pane[hidden]{display:none}
-h2{font:800 1.25rem/1.15 var(--display);font-stretch:85%;margin:0 0 4px}
-h3{font:700 1.02rem/1.2 var(--display);margin:22px 0 8px}
-.lead{color:var(--muted);margin:0 0 16px;font-size:.95rem}
+
+/* ---------- Leiste beim Einzeichnen ---------- */
+.banner{position:fixed;left:50%;bottom:calc(16px + var(--safe-b));transform:translateX(-50%);width:min(720px,calc(100vw - 20px));display:none;grid-template-columns:1fr auto;align-items:center;gap:10px 14px;padding:12px 12px 12px 18px;border-radius:26px;z-index:7}
+.banner.on{display:grid;animation:rise .35s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes rise{from{opacity:0;transform:translate(-50%,20px)}}
+.banner p{grid-column:1 / -1;margin:0;font-size:13.5px;line-height:1.35}
+.banner p:empty{display:none}
+.banner p small{display:none}
+.banner .bad{color:var(--bad-ink);font-weight:600}
+.budget{display:flex;flex-direction:column-reverse;gap:5px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:0;white-space:nowrap}
+.budget b{color:var(--ink);font-weight:600}
+.budget .bar{height:4px;border-radius:999px;background:var(--fill2);overflow:hidden}
+.budget .bar i{display:block;height:100%;width:0;border-radius:inherit;background:var(--ok);transition:width .12s}
+.budget.over .bar i{background:var(--bad)}
+.budget.over b{color:var(--bad-ink)}
+.banner .acts{display:flex;gap:4px;flex-wrap:nowrap}
+.banner .acts .btn{height:38px;padding:0 13px}
+
+/* ---------- Inhalte ---------- */
+h2{font:700 22px/1.15 var(--display);letter-spacing:-.022em;margin:0 40px 4px 0}
+h3{font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:24px 0 10px}
+.lead{color:var(--muted);margin:0 0 18px;font-size:14px}
 .muted{color:var(--muted)}
 
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 16px}
-.stat{background:var(--panel2);border-radius:10px;padding:10px 12px}
-.stat b{display:block;font:800 1.5rem/1 var(--display);font-stretch:85%;font-variant-numeric:tabular-nums}
-.stat span{font-size:.8rem;color:var(--muted)}
+.stats{display:flex;gap:16px;margin:0 0 14px}
+.stat{display:flex;align-items:baseline;gap:5px}
+.stat b{font-weight:600;font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--muted)}
 
-.search{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);margin-bottom:10px}
-.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
-.item{display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;cursor:pointer;border:1px solid transparent;background:none;width:100%;text-align:left}
-.item:hover{background:var(--panel2)}
-.item.sel{background:var(--panel2);border-color:var(--line)}
-.sw{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--line)}
-.item .nm{font-weight:700;display:block;line-height:1.25}
-.item .meta{font-size:.82rem;color:var(--muted)}
+.search{width:100%;height:38px;padding:0 14px;border:0;border-radius:12px;background:var(--fill);margin-bottom:8px;outline:none}
+.search:focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 35%,transparent)}
+.list{list-style:none;margin:0 -8px;padding:0;display:flex;flex-direction:column}
+.item{display:flex;align-items:center;gap:12px;padding:10px;border-radius:14px;cursor:pointer;border:0;background:none;width:100%;text-align:left;transition:background .15s}
+.item:hover{background:var(--fill)}
+.item.sel{background:var(--fill2)}
+.sw{width:12px;height:12px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.item .nm{font-weight:600;display:block;line-height:1.25}
+.item .meta{font-size:12.5px;color:var(--muted)}
 .item .grow{flex:1;min-width:0}
-.tag{font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);white-space:nowrap}
-.tag.pending{color:var(--gold-ink);border-color:var(--gold)}
-.tag.mine{background:var(--gold);color:#1B2430;border-color:var(--gold)}
-.tag.warn{color:var(--bad);border-color:var(--bad)}
+.tag{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--fill);white-space:nowrap;color:var(--muted)}
+.tag.pending{color:var(--gold-ink);background:color-mix(in srgb,var(--gold) 22%,transparent)}
+.tag.mine{background:color-mix(in srgb,var(--gold) 30%,transparent);color:var(--ink)}
+.tag.warn{color:var(--bad-ink);background:color-mix(in srgb,var(--bad) 15%,transparent)}
 
-.detail{border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px;position:relative;overflow:hidden}
-.detail::before{content:"";position:absolute;inset:0 0 auto 0;height:6px;background:var(--c,var(--gold))}
-.detail h2{margin-top:4px}
-.detail dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:12px 0 0;font-size:.92rem}
+.detail{background:var(--fill);border-radius:20px;padding:16px 16px 16px 20px;margin-bottom:18px;position:relative;overflow:hidden}
+.detail::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:0 4px 4px 0;background:var(--c,var(--gold))}
+.detail .tag{display:inline-block;margin-bottom:6px}
+.detail h2{font-size:19px;margin-right:34px}
+.detail dl{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:12px 0 0;font-size:13.5px}
 .detail dt{color:var(--muted)}
 .detail dd{margin:0;font-variant-numeric:tabular-nums}
-.detail .close{position:absolute;right:10px;top:12px;border:0;background:none;font-size:1.3rem;cursor:pointer;color:var(--muted);width:32px;height:32px;border-radius:8px}
-.detail .close:hover{background:var(--panel2)}
+.detail .close{display:none}
 
-.empty{border:2px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--muted)}
+.empty{border-radius:20px;background:var(--fill);padding:24px;text-align:center;color:var(--muted)}
+.empty b{color:var(--ink)}
 
-/* forms */
+/* Formulare */
 label.f{display:block;margin:0 0 14px}
-label.f>span{display:block;font-weight:700;font-size:.9rem;margin-bottom:5px}
-label.f>small{display:block;color:var(--muted);font-size:.8rem;margin-top:4px}
-input[type=text],input[type=number],input[type=datetime-local],textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
-textarea{resize:vertical;min-height:70px}
+label.f>span{display:block;font-weight:500;font-size:13px;color:var(--muted);margin:0 0 6px 2px}
+label.f>small{display:block;color:var(--muted);font-size:12px;margin:5px 0 0 2px}
+input[type=text],input[type=email],input[type=password],input[type=number],input[type=datetime-local],select,textarea{width:100%;padding:10px 14px;border:0;border-radius:12px;background:var(--fill);outline:none;transition:box-shadow .15s}
+input[type=text]:focus,input[type=email]:focus,input[type=password]:focus,input[type=number]:focus,input[type=datetime-local]:focus,select:focus,textarea:focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 35%,transparent)}
+textarea{resize:vertical;min-height:64px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-.stepper{display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;background:var(--panel2);width:max-content}
-.stepper button{width:44px;height:44px;border:0;background:none;font-size:1.3rem;font-weight:700;cursor:pointer}
-.stepper button:disabled{opacity:.35;cursor:default}
-.stepper output{min-width:52px;text-align:center;font:800 1.3rem/1 var(--display);font-variant-numeric:tabular-nums}
-.colors{display:flex;flex-wrap:wrap;gap:8px}
-.colors button{width:32px;height:32px;border-radius:50%;border:0;cursor:pointer;box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--line)}
-.colors button[aria-pressed="true"]{box-shadow:0 0 0 3px var(--panel),0 0 0 6px var(--ink)}
-.sizebox{display:flex;gap:14px;align-items:center;background:var(--panel2);border-radius:12px;padding:12px 14px;margin:4px 0 16px}
-.sizebox svg{flex:none}
-.sizebox b{font:800 1.15rem/1.1 var(--display);font-stretch:85%;display:block}
-.sizebox span{font-size:.85rem;color:var(--muted)}
+.stepper{display:flex;align-items:center;border-radius:999px;background:var(--fill);width:max-content;padding:3px}
+.stepper button{width:36px;height:36px;border:0;border-radius:50%;background:none;font-size:18px;cursor:pointer}
+.stepper button:hover:not(:disabled){background:var(--sel)}
+.stepper button:disabled{opacity:.3;cursor:default}
+.stepper output{min-width:44px;text-align:center;font-weight:600;font-size:16px;font-variant-numeric:tabular-nums}
+.colors{display:flex;flex-wrap:wrap;gap:10px}
+.colors button{width:28px;height:28px;border-radius:50%;border:0;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);transition:transform .15s}
+.colors button:hover{transform:scale(1.1)}
+.colors button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--ink)}
+.sizebox{display:flex;gap:12px;align-items:center;background:var(--fill);border-radius:16px;padding:10px 14px;margin:2px 0 16px}
+.sizebox svg{flex:none;width:40px;height:40px}
+.sizebox b{font-size:15px;font-weight:600;display:block}
+.sizebox span{font-size:12.5px;color:var(--muted)}
 .switch{display:flex;align-items:center;gap:12px;margin:0 0 14px;cursor:pointer}
-.switch input{width:44px;height:26px;appearance:none;-webkit-appearance:none;border-radius:999px;background:var(--line);position:relative;cursor:pointer;flex:none;transition:background .15s}
-.switch input::after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s}
+.switch input{width:46px;height:28px;appearance:none;-webkit-appearance:none;border-radius:999px;background:var(--fill2);position:relative;cursor:pointer;flex:none;transition:background .2s}
+.switch input::after{content:"";position:absolute;left:2px;top:2px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.2);transition:transform .25s cubic-bezier(.2,.9,.3,1.2)}
 .switch input:checked{background:var(--ok)}
 .switch input:checked::after{transform:translateX(18px)}
-.switch span b{display:block}
-.switch span small{color:var(--muted)}
+.switch span b{display:block;font-weight:600}
+.switch span small{color:var(--muted);font-size:12.5px}
 
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-weight:700;cursor:pointer;text-decoration:none}
-.btn:hover{background:var(--panel2)}
-.btn.primary{background:var(--gold);border-color:var(--gold);color:#1B2430;box-shadow:inset 0 -3px 0 rgba(0,0,0,.15)}
-.btn.primary:hover{filter:brightness(1.05)}
-.btn.danger{color:var(--bad)}
-.btn.armed{background:var(--bad);border-color:var(--bad);color:#fff}
-.btn.small{padding:6px 10px;font-size:.85rem;border-radius:8px}
-.btn:disabled{opacity:.5;cursor:default}
-.btn.wide{width:100%}
-.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.note{background:var(--panel2);border-radius:12px;padding:12px 14px;font-size:.92rem;margin:0 0 16px}
-.note.warn{border-left:4px solid var(--bad)}
-.note.info{border-left:4px solid var(--gold)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;border-radius:999px;border:0;background:var(--fill);font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;color:var(--ink);transition:background .15s,filter .15s}
+.btn:hover{background:var(--fill2)}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--accent);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 4px 14px -4px color-mix(in srgb,var(--accent) 70%,transparent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--bad-ink)}
+.btn.armed{background:var(--bad);color:#fff}
+.btn.small{padding:7px 14px;font-size:13px}
+.btn:disabled{opacity:.4;cursor:default;filter:none;box-shadow:none}
+.btn.wide{width:100%;padding:13px 18px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.note{background:var(--fill);border-radius:14px;padding:12px 14px;font-size:13.5px;margin:0 0 16px}
+.note.warn{color:var(--bad-ink);background:color-mix(in srgb,var(--bad) 12%,transparent)}
+.note.info{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+a{color:var(--accent)}
 
-.adm-sec{border-top:1px solid var(--line);padding-top:4px;margin-top:18px}
-.adm-sec:first-of-type{border-top:0;margin-top:0}
+.adm-sec{padding-top:2px}
 .admrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
 .admrow:last-child{border-bottom:0}
 .admrow .grow{flex:1;min-width:0}
-.admrow .nm{font-weight:700}
-.admrow .meta{font-size:.8rem;color:var(--muted)}
-.admedit{background:var(--panel2);border-radius:12px;padding:12px;margin:6px 0 10px}
-.mapthumb{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;border:1px solid var(--line);image-rendering:pixelated;background:var(--mapbg);margin-bottom:10px}
+.admrow .nm{font-weight:600}
+.admrow .meta{font-size:12px;color:var(--muted)}
+.admedit{background:var(--fill);border-radius:16px;padding:12px;margin:6px 0 10px}
+.mapthumb{width:100%;aspect-ratio:1;object-fit:cover;border-radius:16px;image-rendering:pixelated;background:var(--mapbg);margin-bottom:10px}
 
-.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:10px;font-weight:700;pointer-events:none;transition:opacity .2s,transform .2s;z-index:20;max-width:90vw}
-.toast.on{opacity:1;transform:translate(-50%,0)}
+/* Konto-Dialog */
+.dlg{border-radius:26px;background-color:var(--glass-strong);color:var(--ink);padding:22px;width:min(380px,calc(100vw - 32px))}
+.dlg[open]{animation:pop .3s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes pop{from{opacity:0;transform:scale(.94)}}
+.dlg::backdrop{background:rgba(10,14,20,.25);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.dlg .dlg-sep{border:0;border-top:1px solid var(--line);margin:18px 0}
+.suggest{list-style:none;margin:6px 0 0;padding:4px;max-height:190px;overflow:auto;border:0;border-radius:14px;background:var(--panel);box-shadow:var(--shadow)}
+.suggest[hidden]{display:none}
+.suggest li{padding:7px 10px;border-radius:10px;cursor:pointer;font-weight:400;font-size:14px}
+.suggest li:hover,.suggest li.on{background:var(--fill)}
+
+/* Anmeldeseite: Glas-Karte über der verschwommenen Weltkarte */
+.btn.discord{background:#5865F2;color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 4px 14px -4px rgba(88,101,242,.7)}
+.btn.discord:hover{background:#4752C4}
+.gate{position:fixed;inset:0;display:grid;place-items:center;padding:24px 16px;background:var(--mapbg);overflow:auto}
+.gate::before{content:"";position:fixed;inset:-40px;background:url("terrain/overview.webp") center/cover;filter:blur(18px) saturate(1.2);opacity:.8;transform:scale(1.45)}
+.gate[hidden],.gate [hidden]{display:none}
+.gatebox{position:relative;width:min(380px,100%);border-radius:28px;padding:26px}
+.gatebox h1{font:700 24px/1.15 var(--display);letter-spacing:-.022em;margin:16px 0 4px}
+.gatebox .mark{width:44px;height:44px;border-radius:14px}
+.gatebox .mark svg{width:22px;height:22px}
+.gatebox .swap{display:block;margin:16px 0 0;font-size:13px;color:var(--muted);text-align:center;text-decoration:none}
+.gatebox .swap:hover{color:var(--accent)}
+
+.toast{position:fixed;left:50%;top:calc(16px + var(--safe-t));transform:translate(-50%,-12px) scale(.96);opacity:0;padding:10px 18px;border-radius:999px;font-weight:600;font-size:14px;pointer-events:none;transition:opacity .2s,transform .3s cubic-bezier(.2,.9,.3,1.2);z-index:20;max-width:calc(100vw - 32px);text-align:center}
+.toast.on{opacity:1;transform:translate(-50%,0) scale(1)}
+
+/* Vorschaubilder der Gegend (public/previews, erzeugt mit tools/previews) */
+.pv{position:fixed;left:14px;bottom:calc(58px + var(--safe-b));width:min(380px,calc(100vw - 28px));padding:8px;border-radius:24px;z-index:5;
+  opacity:0;visibility:hidden;transform:translateY(14px) scale(.97);transform-origin:left bottom;pointer-events:none;
+  transition:opacity .18s,transform .25s,visibility 0s .25s}
+.pv.on{opacity:1;visibility:visible;transform:none;pointer-events:auto;transition:opacity .22s,transform .32s cubic-bezier(.2,.9,.3,1.1),visibility 0s}
+.pv-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pv-grid button{position:relative;display:block;padding:0;border:0;border-radius:14px;overflow:hidden;cursor:zoom-in;background:var(--mapbg);aspect-ratio:16/9}
+.pv-grid button:first-child{grid-column:1/-1;border-radius:18px 18px 14px 14px}
+.pv-grid img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .35s,transform .5s cubic-bezier(.2,.8,.2,1)}
+.pv-grid img.ld{opacity:1}
+.pv-grid button:hover img{transform:scale(1.04)}
+.pv-grid button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pv-cap{display:flex;align-items:center;gap:8px;padding:8px 6px 2px 8px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pv-cap b{color:var(--ink);font-family:var(--display);font-weight:600;font-size:13.5px}
+.pv-cap .sp{flex:1}
+.pv-x{width:28px;height:28px;flex:none;border-radius:50%;border:0;background:var(--fill);color:var(--muted);cursor:pointer;display:grid;place-items:center}
+.lb{position:fixed;inset:0;z-index:30;background:rgba(6,8,12,.92);display:grid;place-items:center;opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s}
+.lb.on{opacity:1;visibility:visible;transition:opacity .25s,visibility 0s}
+.lb img{max-width:min(96vw,1600px);max-height:86vh;border-radius:14px;box-shadow:0 30px 80px -20px rgba(0,0,0,.8)}
+.lb button{position:absolute;width:46px;height:46px;border:0;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;cursor:pointer;display:grid;place-items:center;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.lb button:hover{background:rgba(255,255,255,.22)}
+.lb .lb-x{top:calc(16px + var(--safe-t));right:16px}
+.lb .lb-p{left:16px;top:50%;margin-top:-23px}
+.lb .lb-n{right:16px;top:50%;margin-top:-23px}
+.lb .lb-c{position:absolute;bottom:calc(20px + var(--safe-b));left:50%;transform:translateX(-50%);color:rgba(255,255,255,.75);font-size:13px;font-variant-numeric:tabular-nums}
 
 @media (max-width: 860px){
-  .shell{height:auto;min-height:100%}
-  .top{flex-wrap:wrap;gap:8px 12px;padding:12px 14px}
-  .titles{flex:1 1 0}
-  .titles h1{font-size:1.25rem}
-  .titles p{white-space:normal}
-  .countdown{margin-left:0}
-  .countdown b{font-size:1.5rem}
-  .app{grid-template-columns:1fr;grid-template-rows:min(68vh, calc(100vw + 24px)) auto}
-  .mapctl{right:10px;top:10px}
-  .panel{border-left:0;border-top:1px solid var(--line)}
-  .pane{overflow:visible}
-  .banner{width:calc(100% - 20px);bottom:10px;padding:10px 12px}
+  .top{left:10px;top:calc(10px + var(--safe-t));max-width:calc(100vw - 76px);padding-right:14px}
+  .corner{right:10px;top:calc(10px + var(--safe-t))}
+  .mapctl{left:10px;top:calc(70px + var(--safe-t))}
+  #authBtn{width:40px;padding:0 6px;font-size:0;gap:0}
+  .mapctl #zin,.mapctl #zout{display:none}
+  .status span{display:none}
+  .tabs{bottom:calc(12px + var(--safe-b))}
+  .tab{padding:0 14px;font-size:13.5px}
+  .tab span{display:none}
+  .sheet-open .tab[aria-selected="true"] span{display:inline}
+  .panel{left:8px;right:8px;width:auto;top:auto;bottom:calc(72px + var(--safe-b));max-height:62dvh;border-radius:26px}
+  .banner{bottom:calc(12px + var(--safe-b));grid-template-columns:1fr;padding:12px}
+  .banner .acts{justify-content:space-between}
+  .banner .acts .btn{padding:0 11px;font-size:12.5px}
+  .coords{display:none}
+  .pv{left:62px;right:10px;width:auto;bottom:auto;top:calc(70px + var(--safe-t));transform-origin:center top;transform:translateY(-12px) scale(.97)}
+  .pv-grid{grid-template-columns:1fr 1fr 1fr}
+  .pv-grid button:first-child{grid-column:auto;border-radius:14px}
+  .lb .lb-p,.lb .lb-n{top:auto;margin:0;bottom:calc(10px + var(--safe-b))}
 }
-@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+@media (hover: none){ .coords{display:none} }
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
-<div class="shell">
-  <header class="top">
+<div class="gate" id="gate" hidden>
+  <form class="gatebox" id="gateForm">
     <div class="mark" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#1B2430" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.6"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="#3B2A00" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.6"/></svg>
     </div>
-    <div class="titles">
-      <h1 id="title">EL-SMP Season 5</h1>
-      <p id="subtitle">Zieht die Grenzen eures Gebiets, bevor der Server startet.</p>
+    <h1>EL-SMP Gebiete</h1>
+    <p class="lead" id="gLead"></p>
+    <div id="gErr"></div>
+    <a class="btn discord wide" id="gDiscord" href="/api/discord/login">Mit Discord anmelden</a>
+    <div id="gAdmin" hidden>
+      <label class="f"><span>Admin-Name</span><input type="text" id="gName" maxlength="32" autocomplete="username"></label>
+      <label class="f"><span>Passwort</span><input type="password" id="gPw" autocomplete="current-password"></label>
+      <button type="submit" class="btn primary wide">Anmelden</button>
     </div>
-    <div class="countdown" id="countdown"></div>
-    <div class="status" id="status"><i></i><span>Claimen offen</span></div>
-  </header>
-
+    <a href="#" class="swap" id="gSwap">Als Admin anmelden</a>
+  </form>
+</div>
+<div class="shell" id="shell" hidden>
   <main class="app">
     <section class="mapwrap" id="mapwrap" aria-label="Karte">
       <svg id="map" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Weltkarte mit geclaimten Gebieten">
@@ -238,28 +362,79 @@ textarea{resize:vertical;min-height:70px}
         <g id="preview"></g>
         <g id="labels" class="labels"></g>
       </svg>
-      <div class="mapctl">
-        <button id="zin" aria-label="Hineinzoomen">+</button>
-        <button id="zout" aria-label="Herauszoomen">−</button>
-        <button id="zfit" aria-label="Ganze Karte zeigen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
-      </div>
-      <div class="coords" id="coords"></div>
-      <div class="banner" id="banner" role="status" aria-live="polite"></div>
+      <div class="coords glass" id="coords"></div>
+      <div class="banner glass" id="banner" role="status" aria-live="polite"></div>
     </section>
 
-    <aside class="panel">
-      <nav class="tabs" role="tablist">
-        <button class="tab" role="tab" data-tab="teams" aria-selected="true">Alle Gebiete</button>
-        <button class="tab" role="tab" data-tab="mine" aria-selected="false">Mein Gebiet</button>
-        <button class="tab" role="tab" data-tab="admin" aria-selected="false" hidden>Admin</button>
-      </nav>
+    <header class="top glass">
+      <div class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#3B2A00" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.6"/></svg>
+      </div>
+      <div class="titles">
+        <h1 id="title">EL-SMP Season 5</h1>
+        <p id="subtitle">Zieht die Grenzen eures Gebiets, bevor der Server startet.</p>
+        <div class="hud-sub">
+          <div class="status" id="status"><i></i><span>Claimen offen</span></div>
+          <div class="countdown" id="countdown"></div>
+        </div>
+      </div>
+    </header>
+
+    <div class="corner">
+      <button class="btn small glass" id="authBtn" title="Konto"></button>
+    </div>
+
+    <div class="mapctl glass">
+      <button id="zin" aria-label="Hineinzoomen" title="Hineinzoomen">+</button>
+      <button id="zout" aria-label="Herauszoomen" title="Herauszoomen">−</button>
+      <button id="zfit" aria-label="Ganze Karte zeigen" title="Ganze Karte"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    </div>
+
+    <aside class="panel glass" aria-label="Details">
+      <button class="sheet-x" id="sheetX" aria-label="Schließen"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       <div class="pane" id="pane-teams"></div>
       <div class="pane" id="pane-mine" hidden></div>
       <div class="pane" id="pane-admin" hidden></div>
+      <div class="pane" id="pane-accounts" hidden></div>
     </aside>
+
+    <nav class="tabs glass" role="tablist" aria-label="Bereiche">
+      <button class="tab" role="tab" data-tab="teams" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4Z"/><path d="M9 4v13.5M15 6.5V20"/></svg><span>Gebiete</span></button>
+      <button class="tab" role="tab" data-tab="mine" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg><span>Mein Gebiet</span></button>
+      <button class="tab" role="tab" data-tab="admin" aria-selected="false" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span>Admin</span></button>
+      <button class="tab" role="tab" data-tab="accounts" aria-selected="false" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg><span>Konten</span></button>
+    </nav>
   </main>
 </div>
-<div class="toast" id="toast"></div>
+<div class="toast glass" id="toast"></div>
+<section class="pv glass" id="pv" aria-label="So sieht es hier aus">
+  <div class="pv-grid" id="pvGrid"></div>
+  <div class="pv-cap"><b>So sieht es hier aus</b><span id="pvPos"></span><span class="sp"></span>
+    <button class="pv-x" id="pvX" aria-label="Vorschau schließen"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+</section>
+<div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Vorschaubild">
+  <img id="lbImg" alt="">
+  <button class="lb-x" id="lbX" aria-label="Schließen"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <button class="lb-p" id="lbP" aria-label="Vorheriges Bild"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <button class="lb-n" id="lbN" aria-label="Nächstes Bild"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+  <div class="lb-c" id="lbC"></div>
+</div>
+
+<dialog class="dlg" id="acctDlg">
+  <h2 id="acctName"></h2>
+  <div class="note info" id="acctHint" hidden>Du nutzt noch das Startpasswort vom Admin. Bitte ändere es jetzt.</div>
+  <form id="pwForm" hidden>
+    <label class="f"><span>Aktuelles Passwort</span><input type="password" id="pwOld" autocomplete="current-password" required></label>
+    <label class="f"><span>Neues Passwort</span><input type="password" id="pwNew" autocomplete="new-password" minlength="8" maxlength="128" required><small>Mindestens 8 Zeichen.</small></label>
+    <div id="pwErr"></div>
+    <div class="btns"><button type="submit" class="btn primary">Passwort ändern</button></div>
+  </form>
+  <hr class="dlg-sep" id="acctSep" hidden>
+  <div class="btns">
+    <button type="button" class="btn" id="acctClose">Schließen</button>
+    <button type="button" class="btn danger" id="acctLogout">Abmelden</button>
+  </div>
+</dialog>
 
 <script src="backend.js"></script>
 <script>
@@ -267,7 +442,7 @@ const DEFAULT_MAP = "map.png";   // Fallback (Biom-Karte), falls tools/world noc
 const DEFAULTS = {
   title: "EL-SMP Season 5",
   subtitle: "Zieht die Grenzen eures Gebiets, bevor der Server startet.",
-  start: "2026-12-27T00:00",
+  start: "2026-12-04T00:00",
   open: true,
   deadline: "",
   requireApproval: false,
@@ -285,20 +460,28 @@ const MAX_POINTS = 60;
 
 const S = {
   db: null, user: null, assets: null, downloads: null,
-  uid: null, isAdmin: false, canWrite: null, readOnly: false,
+  uid: null, meName: "", isAdmin: false, unpaid: false,
   settings: { ...DEFAULTS }, claims: [], names: {},
   loaded: false, slow: false,
   tab: "teams", selected: null, search: "",
   draft: null, placing: null,
-  adminEdit: null, adminDraft: null, imgRatio: null
+  adminEdit: null, adminDraft: null, imgRatio: null,
+  accounts: [], mcNames: []
 };
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+// Solange jemand in einem Tab tippt, baut das Polling ihn nicht neu, sonst wäre die Eingabe weg
+const typing = id => { const a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && $(id).contains(a); };
+const cleanMembers = s => String(s || "").split(",").map(x => x.trim()).filter(Boolean).join(", ");
 const fmt = n => Math.round(n).toLocaleString("de-DE");
 const mapSrc = () => S.settings.mapAssetId ? "/_blob/" + S.settings.mapAssetId : DEFAULT_MAP;
 const budgetFor = (players, st = S.settings) => Number(st.baseBorder) + Number(st.perPlayerBorder) * players;
-const myClaim = () => S.uid ? S.claims.find(c => c.id === S.uid) : null;
+const isMine = c => !!c && c.memberIds.includes(S.uid);
+const myClaim = () => S.uid ? S.claims.find(isMine) : null;
+const memberList = s => cleanMembers(s).split(", ").filter(Boolean);
+// Wer das Formular ausfüllt, ist immer dabei und zählt mit
+const teamSize = text => new Set([S.meName.toLowerCase(), ...memberList(text).map(n => n.toLowerCase())]).size;
 const claimsOpen = () => {
   if (!S.settings.open) return false;
   if (S.settings.deadline && new Date(S.settings.deadline) < new Date()) return false;
@@ -458,10 +641,10 @@ function fit(){
 }
 function clampVB(){
   const wb = worldBox(), a = aspect();
-  const maxW = Math.max(wb.w, wb.h / a) * 1.6, minW = 40;
+  const maxW = Math.min(wb.w, wb.h / a), minW = 40;   // Karte füllt immer den ganzen Bildschirm
   const cx = vb.x + vb.w / 2, cy = vb.y + vb.h / 2;
   vb.w = Math.min(maxW, Math.max(minW, vb.w)); vb.h = vb.w * a;
-  const ncx = Math.min(wb.x + wb.w, Math.max(wb.x, cx)), ncy = Math.min(wb.y + wb.h, Math.max(wb.y, cy));
+  const ncx = Math.min(wb.x + wb.w - vb.w / 2, Math.max(wb.x + vb.w / 2, cx)), ncy = Math.min(wb.y + wb.h - vb.h / 2, Math.max(wb.y + vb.h / 2, cy));
   vb.x = ncx - vb.w / 2; vb.y = ncy - vb.h / 2;
 }
 function applyVB(){
@@ -590,7 +773,55 @@ function mapClick(e){
   let hit = null, best = Infinity;
   for (const c of S.claims){ if (inPoly(w, c.pts) && c.area < best){ hit = c; best = c.area; } }
   select(hit ? hit.id : null, false);
+  showPreviews(w);
 }
+
+/* ---------- Vorschaubilder (public/previews, erzeugt mit tools/previews) ----------
+   Die Welt ist unsichtbar in Felder von PV.idx.cell Blöcken geteilt; ein Klick zeigt
+   die gerenderten Ansichten des Felds, in dem er landet. */
+const PV = { idx: null, key: null, shots: [], i: 0 };
+fetch("previews/index.json").then(r => r.ok ? r.json() : null).then(j => { if (j && j.cells) PV.idx = j; }).catch(() => {});
+function showPreviews(w){
+  if (!PV.idx) return;
+  const cx = Math.floor(w[0] / PV.idx.cell), cz = Math.floor(w[1] / PV.idx.cell), key = cx + "," + cz;
+  const shots = PV.idx.cells[key];
+  if (!shots || !shots.length){ hidePreviews(); return; }
+  $("#pvPos").textContent = `X ${Math.round(w[0])} · Z ${Math.round(w[1])}`;
+  if (key === PV.key && $("#pv").classList.contains("on")) return;
+  PV.key = key; PV.shots = shots.map(f => "previews/" + f);
+  const g = $("#pvGrid"); g.innerHTML = "";
+  PV.shots.forEach((src, i) => {
+    const b = document.createElement("button"), im = new Image();
+    b.setAttribute("aria-label", `Ansicht ${i + 1} vergrößern`);
+    im.alt = `Ansicht ${i + 1} der Gegend`; im.decoding = "async";
+    im.onload = () => im.classList.add("ld");
+    im.src = src;
+    b.appendChild(im); b.onclick = () => openLightbox(i);
+    g.appendChild(b);
+  });
+  $("#pv").classList.add("on");
+}
+function hidePreviews(){ $("#pv").classList.remove("on"); PV.key = null; }
+function openLightbox(i){
+  PV.i = (i + PV.shots.length) % PV.shots.length;
+  $("#lbImg").src = PV.shots[PV.i];
+  $("#lbImg").alt = `Ansicht ${PV.i + 1} der Gegend`;
+  $("#lbC").textContent = `${PV.i + 1} / ${PV.shots.length}`;
+  $("#lb").classList.add("on");
+  $("#lbX").focus();
+}
+function closeLightbox(){ $("#lb").classList.remove("on"); }
+$("#pvX").onclick = hidePreviews;
+$("#lbX").onclick = closeLightbox;
+$("#lbP").onclick = e => { e.stopPropagation(); openLightbox(PV.i - 1); };
+$("#lbN").onclick = e => { e.stopPropagation(); openLightbox(PV.i + 1); };
+$("#lb").onclick = e => { if (e.target.id === "lb") closeLightbox(); };
+addEventListener("keydown", e => {
+  if (!$("#lb").classList.contains("on")){ if (e.key === "Escape" && $("#pv").classList.contains("on")) hidePreviews(); return; }
+  if (e.key === "Escape") closeLightbox();
+  else if (e.key === "ArrowLeft") openLightbox(PV.i - 1);
+  else if (e.key === "ArrowRight") openLightbox(PV.i + 1);
+});
 function select(id, fly){
   S.selected = id;
   if (id){
@@ -604,7 +835,7 @@ function select(id, fly){
 /* ---------- Gelände (public/terrain, erzeugt mit tools/world) ---------- */
 const T = { idx: null, has: new Set(), tiles: new Map(), data: new Map(), hover: null };
 const useTerrain = () => !!T.idx && !S.settings.mapAssetId;
-fetch("terrain/index.json").then(r => r.ok ? r.json() : null).then(j => {
+const loadTerrain = () => fetch("terrain/index.json").then(r => r.ok ? r.json() : null).then(j => {
   if (!j) return;
   T.idx = j; T.has = new Set(j.tiles.map(([x, z]) => x + "," + z));
   const o = j.overview, im = $("#tover");
@@ -690,7 +921,7 @@ function drawPlots(){
     if (c.id === editingId) continue;
     const cls = ["plot"];
     if (c.status === "pending") cls.push("pending");
-    if (c.id === S.uid) cls.push("mine");
+    if (isMine(c)) cls.push("mine");
     if (c.id === S.selected) cls.push("sel");
     if (bad.has(c.id)) cls.push("overlap");
     const pa = ptsAttr(c.pts), col = esc(c.color);
@@ -808,7 +1039,7 @@ function renderBanner(){
   let text;
   if (!P.pts.length) text = "Tipp auf die Karte, um den ersten Grenzpunkt zu setzen.";
   else if (!P.closed) text = P.pts.length < 3 ? "Setz weitere Punkte entlang eurer Grenze." : "Weiter so. Tipp auf den ersten Punkt oder auf „Grenze schließen“.";
-  else text = "";
+  else text = P.isAdminEdit && P.error ? "Achtung: " + P.error + " Als Admin kannst du trotzdem speichern." : "";
   const label = P.isAdminEdit ? "Grenzen speichern" : P.targetId && S.claims.some(c => c.id === P.targetId) ? "Grenzen speichern" : "Gebiet claimen";
   b.innerHTML = `
     <p id="bMsg">${P.note ? `<span class="bad">${esc(P.note)}</span>` : esc(text)}${!P.closed ? `<small>Ziehen verschiebt die Karte, Punkte lassen sich mit der Maus oder dem Finger verschieben.</small>` : ""}</p>
@@ -830,7 +1061,7 @@ function renderBanner(){
 async function confirmDrawing(){
   const P = S.placing;
   revalidate();
-  if (!P.closed || P.error || P.over || !S.db) { renderBanner(); return; }
+  if (!P.closed || (!P.isAdminEdit && (P.error || P.over)) || !S.db) { renderBanner(); return; }
   const btn = $("#bConfirm"); btn.disabled = true;
   const c = centroid(P.pts);
   const geo = { pts: P.pts.map(p => ({ x: p[0], z: p[1] })), x: Math.round(c[0]), z: Math.round(c[1]), updatedAt: Date.now() };
@@ -840,11 +1071,11 @@ async function confirmDrawing(){
       toast("Grenzen gespeichert");
     } else {
       const d = S.draft, existing = myClaim();
-      const body = { ...geo, team: d.team.trim(), players: d.players, color: d.color, members: (d.members || "").trim(), note: (d.note || "").trim() };
-      if (existing) await S.db.doc("claims/" + S.uid).update(body);
+      const body = { ...geo, team: d.team.trim(), color: d.color, members: cleanMembers(d.members), note: (d.note || "").trim() };
+      if (existing) await S.db.doc("claims/" + existing.id).update(body);
       else await S.db.doc("claims/" + S.uid).set({ ...body, status: S.settings.requireApproval ? "pending" : "approved", createdAt: Date.now() });
       toast(existing ? "Grenzen gespeichert" : "Gebiet geclaimt");
-      S.draft = null; S.selected = S.uid;
+      S.draft = null; S.selected = existing ? existing.id : S.uid;
     }
     stopDrawing(); renderMine(); renderTeams();
   }catch(e){ btn.disabled = false; toast(errMsg(e)); }
@@ -855,7 +1086,133 @@ document.querySelectorAll(".tab").forEach(t => t.onclick = () => setTab(t.datase
 function setTab(name){
   S.tab = name;
   document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t.dataset.tab === name));
-  for (const n of ["teams", "mine", "admin"]) $("#pane-" + n).hidden = n !== name;
+  for (const n of ["teams", "mine", "admin", "accounts"]) $("#pane-" + n).hidden = n !== name;
+}
+
+/* ---------- Anmeldung ---------- */
+function showGate(user, me){
+  const LEAD = "Melde dich mit Discord an.";
+  const showErr = t => { $("#gErr").innerHTML = t ? `<div class="note warn">${esc(t)}</div>` : ""; };
+  const url = new URL(location.href), code = url.searchParams.get("login_error");
+  const ERR = {
+    locked: "Dieses Konto ist gesperrt. Frag einen Admin.",
+    cancelled: "Die Anmeldung bei Discord wurde abgebrochen.",
+    state: "Die Anmeldung ist abgelaufen. Versuch es noch einmal.",
+    discord_failed: "Discord ist gerade nicht erreichbar. Versuch es gleich noch einmal.",
+    not_configured: "Die Discord-Anmeldung ist noch nicht eingerichtet."
+  };
+  const loggedOut = url.searchParams.has("logged_out");
+  let asAdmin = url.searchParams.has("admin");
+  // Normalfall: gleich zu Discord. Die Seite erscheint nur nach einem Fehler, nach dem Abmelden oder für den Admin
+  if (me.discordEnabled && !code && !loggedOut && !asAdmin){ location.replace("/api/discord/login"); return; }
+  history.replaceState(null, "", url.pathname);
+  const setMode = () => {
+    $("#gLead").textContent = asAdmin ? "Anmeldung für das Admin-Konto." : loggedOut ? "Du bist abgemeldet." : me.discordEnabled ? LEAD : "Die Discord-Anmeldung ist noch nicht eingerichtet. Der Admin kann sich trotzdem anmelden.";
+    $("#gDiscord").hidden = asAdmin || !me.discordEnabled;
+    $("#gAdmin").hidden = !asAdmin;
+    $("#gName").required = $("#gPw").required = asAdmin;
+    $("#gSwap").textContent = asAdmin ? "Zurück zur Discord-Anmeldung" : "Als Admin anmelden";
+  };
+  $("#gSwap").onclick = e => { e.preventDefault(); asAdmin = !asAdmin; showErr(""); setMode(); if (asAdmin) $("#gName").focus(); };
+  $("#gateForm").onsubmit = async e => {
+    e.preventDefault();
+    if (!asAdmin) return;
+    try{ await user.login({ name: $("#gName").value, password: $("#gPw").value }); location.replace("/"); }
+    catch(err){ showErr(err.serverMsg || "Das hat nicht geklappt. Versuch es gleich noch einmal."); $("#gPw").value = ""; }
+  };
+  setMode(); showErr(ERR[code] || "");
+  $("#gate").hidden = false;
+}
+function setupAuth(me){
+  const btn = $("#authBtn");
+  btn.textContent = me.name;
+  btn.onclick = () => $("#acctDlg").showModal();
+  $("#acctName").textContent = me.name;
+  $("#pwForm").hidden = $("#acctSep").hidden = !me.isAdmin;
+  $("#acctHint").hidden = !me.mustChange;
+  $("#acctClose").onclick = () => $("#acctDlg").close();
+  $("#acctLogout").onclick = async () => { try{ await S.user.logout(); location.replace("/?logged_out=1"); }catch(e){ toast(errMsg(e)); } };
+  if (!me.isAdmin) return;
+  $("#pwForm").onsubmit = async e => {
+    e.preventDefault();
+    try{
+      await S.user.changePassword($("#pwOld").value, $("#pwNew").value);
+      e.target.reset(); $("#pwErr").innerHTML = ""; $("#acctHint").hidden = true;
+      $("#acctDlg").close(); toast("Passwort geändert");
+    }catch(err){ $("#pwErr").innerHTML = `<div class="note warn">${esc(err.serverMsg || "Das hat nicht geklappt.")}</div>`; }
+  };
+  if (me.mustChange) $("#acctDlg").showModal();
+}
+
+/* ---------- Namensvorschläge für „Mitglieder“ (alle, die schon angemeldet waren) ---------- */
+async function loadNames(){ try{ S.mcNames = await S.user.names(); }catch(e){} }
+function nameSuggest(input, claimId){
+  const box = document.createElement("ul");
+  box.className = "suggest"; box.hidden = true; box.setAttribute("role", "listbox");
+  input.after(box);
+  let active = -1, matches = [];
+  const parts = () => input.value.split(",").map(x => x.trim());
+  const show = () => {
+    const token = parts().pop().toLowerCase();
+    const used = new Set(parts().slice(0, -1).map(x => x.toLowerCase()));
+    // Wer schon in einem anderen Team steht, wird nicht mehr vorgeschlagen
+    used.add(S.meName.toLowerCase());
+    for (const c of S.claims) if (c.id !== claimId) for (const m of c.members.split(",")) used.add(m.trim().toLowerCase());
+    const free = S.mcNames.filter(n => !used.has(n.toLowerCase()) && n.toLowerCase().includes(token));
+    matches = [...free.filter(n => n.toLowerCase().startsWith(token)), ...free.filter(n => !n.toLowerCase().startsWith(token))];
+    if (matches.length === 1 && matches[0].toLowerCase() === token) matches = [];
+    active = token && matches.length ? 0 : -1;
+    box.innerHTML = matches.map((n, i) => `<li role="option" data-i="${i}" class="${i === active ? "on" : ""}">${esc(n)}</li>`).join("");
+    box.hidden = !matches.length;
+  };
+  const pick = name => {
+    input.value = [...parts().slice(0, -1), name].join(", ") + ", ";
+    input.dispatchEvent(new Event("input"));
+    input.focus();
+  };
+  const mark = () => {
+    box.querySelectorAll("li").forEach((li, i) => li.classList.toggle("on", i === active));
+    const li = box.children[active]; if (li) li.scrollIntoView({ block: "nearest" });
+  };
+  input.setAttribute("autocomplete", "off");
+  input.addEventListener("focus", show);
+  input.addEventListener("input", show);
+  input.addEventListener("blur", () => { box.hidden = true; });
+  input.addEventListener("keydown", e => {
+    if (box.hidden) return;
+    if (e.key === "ArrowDown"){ e.preventDefault(); active = (active + 1) % matches.length; mark(); }
+    else if (e.key === "ArrowUp"){ e.preventDefault(); active = (active - 1 + matches.length) % matches.length; mark(); }
+    else if (e.key === "Enter" && active >= 0){ e.preventDefault(); pick(matches[active]); }
+    else if (e.key === "Escape"){ box.hidden = true; }
+  });
+  // mousedown statt click: sonst verliert das Feld vorher den Fokus und die Liste ist weg
+  box.addEventListener("mousedown", e => {
+    e.preventDefault();
+    const li = e.target.closest("li"); if (li) pick(matches[+li.dataset.i]);
+  });
+}
+
+/* ---------- Konten (nur Admin) ---------- */
+async function loadAccounts(){
+  try{ S.accounts = await S.user.accounts(); }catch(e){ toast(errMsg(e)); }
+  renderAccounts(); renderAdmin();
+}
+function renderAccounts(){
+  const el = $("#pane-accounts");
+  if (!S.isAdmin) return;
+  let html = `<h2>Konten</h2><p class="lead">Jeder, der sich mit Discord anmeldet, bekommt automatisch ein Konto.</p>
+    <h3>Alle Konten (${S.accounts.length})</h3>`;
+  for (const u of S.accounts){
+    const c = S.claims.find(x => x.memberIds.includes(u.id)), admin = u.role === "admin";
+    html += `<div class="admrow"><div class="grow"><div class="nm">${esc(u.name)}</div><div class="meta">${esc([admin ? "Admin" : null, c ? "Gebiet: " + c.team : "kein Gebiet"].filter(Boolean).join(", "))}</div></div>
+      ${u.active ? "" : `<span class="tag warn">gesperrt</span>`}
+      ${admin ? "" : `<button class="btn small" data-aclock="${esc(u.id)}" data-active="${u.active ? "1" : ""}">${u.active ? "Sperren" : "Entsperren"}</button>`}</div>`;
+  }
+  el.innerHTML = html;
+  el.querySelectorAll("[data-aclock]").forEach(b => b.onclick = async () => {
+    try{ await S.user.updateAccount(b.dataset.aclock, { active: !b.dataset.active }); await loadAccounts(); }
+    catch(e){ toast(errMsg(e)); }
+  });
 }
 
 /* ---------- header ---------- */
@@ -914,10 +1271,15 @@ function renderTeams(){
     const who = S.names[sel.id];
     html += `<div class="detail" style="--c:${esc(sel.color)}">
       <button class="close" id="dClose" aria-label="Schließen">×</button>
-      ${sel.id === S.uid ? `<span class="tag mine">Euer Gebiet</span>` : sel.status === "pending" ? `<span class="tag pending">Wartet auf Freigabe</span>` : ``}
+      ${isMine(sel) ? `<span class="tag mine">Euer Gebiet</span>` : sel.status === "pending" ? `<span class="tag pending">Wartet auf Freigabe</span>` : ``}
       <h2>${esc(sel.team)}</h2>
       ${sel.note ? `<p style="margin:6px 0 0">${esc(sel.note)}</p>` : ""}
-      <dl>${claimFacts(sel)}${who && sel.id !== S.uid ? `<dt>Geclaimt von</dt><dd>${esc(who)}</dd>` : ""}</dl>
+      <dl>${claimFacts(sel)}${who && !isMine(sel) ? `<dt>Geclaimt von</dt><dd>${esc(who)}</dd>` : ""}</dl>
+      ${S.isAdmin ? `<div class="btns">
+        <button class="btn small" id="dBorder">Grenzen bearbeiten</button>
+        <button class="btn small" id="dEdit">Daten bearbeiten</button>
+        <button class="btn small danger" id="dDel">Gebiet löschen</button>
+      </div>` : ""}
     </div>`;
   }
   html += `<div class="stats">
@@ -931,16 +1293,23 @@ function renderTeams(){
     html += `<input class="search" id="search" type="search" placeholder="Team suchen" value="${esc(S.search)}" aria-label="Team suchen">`;
     const q = S.search.trim().toLowerCase();
     const list = S.claims.filter(c => !q || c.team.toLowerCase().includes(q) || (c.members || "").toLowerCase().includes(q))
-      .sort((a, b) => (b.id === S.uid) - (a.id === S.uid) || a.team.localeCompare(b.team, "de"));
+      .sort((a, b) => isMine(b) - isMine(a) || a.team.localeCompare(b.team, "de"));
     html += `<ul class="list">` + list.map(c => `<li><button class="item ${c.id === S.selected ? "sel" : ""}" data-id="${esc(c.id)}">
       <span class="sw" style="background:${esc(c.color)}"></span>
       <span class="grow"><span class="nm">${esc(c.team)}</span><span class="meta">${c.players} Spieler, X ${c.cx} Z ${c.cz}</span></span>
-      ${c.id === S.uid ? `<span class="tag mine">Ihr</span>` : c.status === "pending" ? `<span class="tag pending">offen</span>` : ""}
+      ${isMine(c) ? `<span class="tag mine">Ihr</span>` : c.status === "pending" ? `<span class="tag pending">offen</span>` : ""}
     </button></li>`).join("") + `</ul>`;
     if (!list.length) html += `<p class="muted">Kein Team passt zu „${esc(S.search)}“.</p>`;
   }
   el.innerHTML = html;
   const dc = $("#dClose"); if (dc) dc.onclick = () => select(null);
+  if (sel && S.isAdmin){
+    $("#dBorder").onclick = () => startDrawing({ targetId: sel.id, players: sel.players, color: sel.color, pts: sel.pts, isAdminEdit: true });
+    $("#dEdit").onclick = () => { S.adminEdit = sel.id; setTab("admin"); renderAdmin(); $("#eTeam").scrollIntoView({ block: "center" }); };
+    armConfirm($("#dDel"), "Ja, wirklich löschen", async () => {
+      try{ await S.db.doc("claims/" + sel.id).delete(); S.selected = null; toast("Gebiet „" + sel.team + "“ gelöscht"); }catch(e){ toast(errMsg(e)); }
+    });
+  }
   const gm = $("#goMine"); if (gm) gm.onclick = () => setTab("mine");
   const s = $("#search"); if (s) s.oninput = e => { S.search = e.target.value; const pos = e.target.selectionStart; renderTeams(); const n = $("#search"); n.focus(); n.setSelectionRange(pos, pos); };
   el.querySelectorAll(".item").forEach(b => b.onclick = () => select(b.dataset.id, true));
@@ -951,9 +1320,8 @@ function newDraft(from){
   const used = new Set(S.claims.map(c => c.color));
   return {
     team: from ? from.team : "",
-    players: from ? from.players : Math.min(S.settings.maxPlayers, Math.max(S.settings.minPlayers, 3)),
     color: from ? from.color : (COLORS.find(c => !used.has(c)) || COLORS[0]),
-    members: from ? from.members || "" : "",
+    members: from ? memberList(from.members).filter(n => n.toLowerCase() !== S.meName.toLowerCase()).join(", ") : "",
     note: from ? from.note || "" : ""
   };
 }
@@ -964,10 +1332,10 @@ function renderMine(){
   const el = $("#pane-mine"), mine = myClaim(), st = S.settings;
   if (!S.db){ el.innerHTML = `<h2>Mein Gebiet</h2><div class="note warn">Der Server ist gerade nicht erreichbar. Lade die Seite gleich neu.</div>`; return; }
   if (!S.loaded){ el.innerHTML = `<h2>Mein Gebiet</h2><p class="muted">Wird geladen…</p>`; return; }
-  if (S.readOnly && S.user && S.user.loginUrl && !S.uid){ el.innerHTML = `<h2>Mein Gebiet</h2><p class="lead">Melde dich mit Discord an, um für dein Team ein Gebiet zu claimen. Wir sehen nur deinen Discord-Namen.</p><div class="btns"><a class="btn primary wide" href="${esc(S.user.loginUrl)}">Mit Discord anmelden</a></div>`; return; }
-  if (S.readOnly){ el.innerHTML = `<h2>Mein Gebiet</h2><div class="note warn">Du kannst die Karte ansehen, aber nichts claimen. Frag einen Admin nach Bearbeitungsrechten für diese Seite.</div>`; return; }
-  const account = S.user && S.user.name ? `<p class="muted" style="font-size:.85rem;margin:16px 0 0">Angemeldet als <b>${esc(S.user.name)}</b> · <a href="${esc(S.user.logoutUrl)}">Abmelden</a></p>` : "";
-  const open = claimsOpen();
+  if (S.unpaid && !mine){ el.innerHTML = `<h2>Mein Gebiet</h2><div class="note info">Deine Zahlung ist noch nicht eingetragen. Du kannst dir die Karte ansehen, ein Gebiet claimen geht aber erst nach der Zahlung.</div>`; return; }
+  const open = claimsOpen() && !S.unpaid;
+  // Hat dich jemand ins Team eingetragen, gibt es nichts mehr zu claimen
+  if (mine && S.draft && !S.draft.editing && !S.placing) S.draft = null;
 
   if (mine && !S.draft){
     const budget = budgetFor(mine.players);
@@ -977,20 +1345,22 @@ function renderMine(){
       <dl>${claimFacts(mine)}<dt>Erlaubt</dt><dd>${fmt(budget)} Blöcke Grenze</dd>${mine.note ? `<dt>Plan</dt><dd>${esc(mine.note)}</dd>` : ""}</dl>
       <div class="btns">
         <button class="btn small" id="mShow">Auf Karte zeigen</button>
-        ${open ? `<button class="btn small" id="mEdit">Bearbeiten</button><button class="btn small" id="mMove">Grenzen ändern</button><button class="btn small danger" id="mDel">Gebiet freigeben</button>` : ""}
+        ${open ? `<button class="btn small" id="mEdit">Bearbeiten</button><button class="btn small" id="mMove">Grenzen ändern</button>${mine.id === S.uid ? `<button class="btn small danger" id="mDel">Gebiet freigeben</button>` : ""}` : ""}
+        ${mine.id !== S.uid && claimsOpen() ? `<button class="btn small danger" id="mLeave">Team verlassen</button>` : ""}
       </div>
     </div>`;
-    if (!open) html += `<div class="note info">Das Claimen ist geschlossen. Änderungen gehen nur noch über einen Admin.</div>`;
-    html += account;
-    if (S.user && S.user.loginLink) html += `<div class="note info">Euer Gebiet hängt an diesem Browser. Auf einem anderen Gerät weitermachen? Diesen Link dort öffnen (nicht weitergeben):<input class="search" id="mLink" readonly value="${esc(S.user.loginLink())}" style="margin:8px 0 0"></div>`;
+    if (!open) html += `<div class="note info">${S.unpaid ? "Du bist in diesem Team, kannst das Gebiet aber erst nach deiner Zahlung bearbeiten." : "Das Claimen ist geschlossen. Änderungen gehen nur noch über einen Admin."}</div>`;
     el.innerHTML = html;
-    const ml = $("#mLink"); if (ml) ml.onfocus = () => ml.select();
     $("#mShow").onclick = () => select(mine.id, true);
+    const ml = $("#mLeave");
+    if (ml) armConfirm(ml, "Ja, Team verlassen", async () => {
+      try{ await S.user.leaveTeam(mine.id); toast("Du hast das Team verlassen"); S.selected = null; }catch(e){ toast(errMsg(e)); }
+    });
     if (open){
       $("#mEdit").onclick = () => { S.draft = newDraft(mine); S.draft.editing = true; renderMine(); };
-      $("#mMove").onclick = () => { S.draft = newDraft(mine); startDrawing({ targetId: S.uid, players: mine.players, color: mine.color, pts: mine.pts }); };
-      armConfirm($("#mDel"), "Ja, wirklich freigeben", async () => {
-        try{ await S.db.doc("claims/" + S.uid).delete(); toast("Gebiet freigegeben"); S.selected = null; }catch(e){ toast(errMsg(e)); }
+      $("#mMove").onclick = () => { S.draft = newDraft(mine); startDrawing({ targetId: mine.id, players: mine.players, color: mine.color, pts: mine.pts }); };
+      if ($("#mDel")) armConfirm($("#mDel"), "Ja, wirklich freigeben", async () => {
+        try{ await S.db.doc("claims/" + mine.id).delete(); toast("Gebiet freigegeben"); S.selected = null; }catch(e){ toast(errMsg(e)); }
       });
     }
     return;
@@ -999,47 +1369,62 @@ function renderMine(){
   if (!open && !mine){ el.innerHTML = `<h2>Mein Gebiet</h2><div class="note info">Das Claimen ist gerade geschlossen. Schau dir trotzdem an, wo die anderen Teams bauen.</div>`; return; }
 
   if (!S.draft) S.draft = newDraft();
-  const d = S.draft, budget = budgetFor(d.players), side = budget / 4;
+  const d = S.draft, cur = mine ? mine.id : S.uid;
+  const sizeHtml = () => {
+    const budget = budgetFor(teamSize(d.members)), side = budget / 4;
+    return `${budgetIcon(d.color)}<div><b>${fmt(budget)} Blöcke Grenzlänge</b><span>So lang darf eure Grenze insgesamt sein. Das reicht z. B. für ein Quadrat von ${fmt(side)} × ${fmt(side)} Blöcken. Mehr Spieler, mehr Grenze.</span></div>`;
+  };
+  const countText = () => `${teamSize(d.members)} von ${st.maxPlayers} Spielern`;
   let html = `<h2>${d.editing ? "Gebiet bearbeiten" : "Gebiet claimen"}</h2>
-  <p class="lead">${d.editing ? "Ändert Name, Spielerzahl oder Farbe." : "Gebt euer Team an, dann zieht ihr eure Grenzen direkt auf der Karte."}</p>
+  <p class="lead">${d.editing ? "Ändert Name, Mitglieder oder Farbe." : "Gebt euer Team an, dann zieht ihr eure Grenzen direkt auf der Karte."}</p>
   <label class="f"><span>Teamname</span><input type="text" id="fTeam" maxlength="32" value="${esc(d.team)}" placeholder="z. B. Die Redstone-Bande" autocomplete="off"></label>
-  <label class="f"><span>Spieler im Team</span>
-    <div class="stepper"><button type="button" id="fMinus" aria-label="Weniger" ${d.players <= st.minPlayers ? "disabled" : ""}>−</button><output id="fPlayers">${d.players}</output><button type="button" id="fPlus" aria-label="Mehr" ${d.players >= st.maxPlayers ? "disabled" : ""}>+</button></div>
-    <small>Erlaubt sind ${st.minPlayers} bis ${st.maxPlayers} Spieler pro Team.</small></label>
-  <div class="sizebox">${budgetIcon(d.color)}<div><b>${fmt(budget)} Blöcke Grenzlänge</b><span>So lang darf eure Grenze insgesamt sein. Das reicht z. B. für ein Quadrat von ${fmt(side)} × ${fmt(side)} Blöcken. Mehr Spieler, mehr Grenze.</span></div></div>
+  <label class="f"><span>Weitere Mitglieder</span><input type="text" id="fMembers" maxlength="400" value="${esc(d.members)}" placeholder="Namen tippen oder aus der Liste wählen">
+    <small>Du (${esc(S.meName)}) bist automatisch dabei. Alle Eingetragenen gehören zu diesem Gebiet und können kein eigenes mehr erstellen. Eintragen kannst du jeden, der sich schon einmal angemeldet hat. <b id="fCount">${countText()}</b></small></label>
+  <div class="sizebox" id="fSize">${sizeHtml()}</div>
   <label class="f"><span>Teamfarbe</span></label>
   <div class="colors" role="group" aria-label="Teamfarbe" style="margin:-8px 0 16px">${COLORS.map(c => `<button type="button" style="background:${c}" data-c="${c}" aria-pressed="${c === d.color}" aria-label="Farbe ${c}"></button>`).join("")}</div>
-  <label class="f"><span>Mitglieder <span class="muted" style="font-weight:400">(optional)</span></span><input type="text" id="fMembers" maxlength="200" value="${esc(d.members)}" placeholder="Minecraft-Namen, mit Komma getrennt"></label>
   <label class="f"><span>Was baut ihr? <span class="muted" style="font-weight:400">(optional)</span></span><textarea id="fNote" maxlength="200" placeholder="z. B. Hafenstadt mit Leuchtturm">${esc(d.note)}</textarea></label>
   <div id="fErr"></div>
   <div class="btns">
     ${d.editing ? `<button class="btn" id="fCancel">Abbrechen</button><button class="btn primary" id="fSave">Änderungen speichern</button>` : `<button class="btn primary wide" id="fPlace">Grenzen auf der Karte ziehen</button>`}
-  </div>${account}`;
+  </div>`;
   el.innerHTML = html;
 
   const sync = () => { d.team = $("#fTeam").value; d.members = $("#fMembers").value; d.note = $("#fNote").value; };
-  $("#fMinus").onclick = () => { sync(); d.players = Math.max(st.minPlayers, d.players - 1); renderMine(); };
-  $("#fPlus").onclick = () => { sync(); d.players = Math.min(st.maxPlayers, d.players + 1); renderMine(); };
+  for (const id of ["#fTeam", "#fMembers", "#fNote"]) $(id).addEventListener("input", sync);
+  $("#fMembers").addEventListener("input", () => { $("#fSize").innerHTML = sizeHtml(); $("#fCount").textContent = countText(); });
+  nameSuggest($("#fMembers"), cur);
   el.querySelectorAll(".colors button").forEach(b => b.onclick = () => { sync(); d.color = b.dataset.c; renderMine(); });
   const validate = () => {
     sync();
     const name = d.team.trim();
     if (name.length < 2) return "Gib einen Teamnamen mit mindestens 2 Zeichen ein.";
-    const dup = S.claims.find(c => c.id !== S.uid && c.team.trim().toLowerCase() === name.toLowerCase());
+    const dup = S.claims.find(c => c.id !== cur && c.team.trim().toLowerCase() === name.toLowerCase());
     if (dup) return "Den Teamnamen „" + dup.team + "“ gibt es schon.";
+    const own = mine ? memberList(mine.members).map(n => n.toLowerCase()) : [];
+    for (const n of memberList(d.members)){
+      const low = n.toLowerCase();
+      if (S.mcNames.length && !own.includes(low) && !S.mcNames.some(x => x.toLowerCase() === low)) return "„" + n + "“ hat sich noch nie angemeldet. Nimm einen Namen aus den Vorschlägen.";
+      const other = S.claims.find(c => c.id !== cur && memberList(c.members).some(x => x.toLowerCase() === low));
+      if (other) return "„" + n + "“ ist schon im Team „" + other.team + "“.";
+    }
+    const size = teamSize(d.members);
+    if (size > st.maxPlayers) return "Ein Team darf höchstens " + st.maxPlayers + " Spieler haben, ihr wärt " + size + ".";
+    if (size < st.minPlayers) return "Ein Team braucht mindestens " + st.minPlayers + " Spieler, ihr seid " + size + ".";
     return null;
   };
   const showErr = m => { $("#fErr").innerHTML = m ? `<div class="note warn">${esc(m)}</div>` : ""; };
   const fp = $("#fPlace");
-  if (fp) fp.onclick = () => { const m = validate(); showErr(m); if (!m) startDrawing({ targetId: S.uid, players: d.players, color: d.color }); };
+  if (fp) fp.onclick = () => { const m = validate(); showErr(m); if (!m) startDrawing({ targetId: cur, players: teamSize(d.members), color: d.color }); };
   const fc = $("#fCancel"); if (fc) fc.onclick = () => { S.draft = null; renderMine(); };
   const fs = $("#fSave");
   if (fs) fs.onclick = async () => {
     const m = validate(); if (m) return showErr(m);
-    if (mine.perim > budget + 0.5) return showErr(`Mit ${d.players} Spielern habt ihr ${fmt(budget)} Blöcke Grenze, eure ist aber ${fmt(mine.perim)} lang. Macht zuerst über „Grenzen ändern“ euer Gebiet kleiner.`);
+    const size = teamSize(d.members), budget = budgetFor(size);
+    if (mine.perim > budget + 0.5) return showErr(`Mit ${size} Spielern habt ihr ${fmt(budget)} Blöcke Grenze, eure ist aber ${fmt(mine.perim)} lang. Macht zuerst über „Grenzen ändern“ euer Gebiet kleiner.`);
     fs.disabled = true;
     try{
-      await S.db.doc("claims/" + S.uid).update({ team: d.team.trim(), players: d.players, color: d.color, members: d.members.trim(), note: d.note.trim(), updatedAt: Date.now() });
+      await S.db.doc("claims/" + mine.id).update({ team: d.team.trim(), color: d.color, members: cleanMembers(d.members), note: d.note.trim(), updatedAt: Date.now() });
       S.draft = null; toast("Änderungen gespeichert"); renderMine();
     }catch(e){ fs.disabled = false; showErr(errMsg(e)); }
   };
@@ -1106,6 +1491,13 @@ function renderAdmin(){
     if (S.adminEdit === c.id){
       html += `<div class="admedit">
         <div class="row2"><label class="f"><span>Teamname</span><input type="text" id="eTeam" value="${esc(c.team)}" maxlength="32"></label>${num("ePlayers", "Spieler", c.players)}</div>
+        <label class="f"><span>Teamfarbe</span><select id="eColor">${COLORS.map(x => `<option value="${x}" ${x === c.color ? "selected" : ""}>${x}</option>`).join("")}</select></label>
+        <label class="f"><span>Mitglieder</span><input type="text" id="eMembers" value="${esc(c.members)}" maxlength="400"></label>
+        <label class="f"><span>Was bauen sie?</span><input type="text" id="eNote" value="${esc(c.note)}" maxlength="200"></label>
+        <label class="f"><span>Besitzer</span><select id="eOwner">
+          ${S.accounts.some(u => u.id === c.id) ? "" : `<option value="" selected>Kein Konto</option>`}
+          ${S.accounts.filter(u => c.memberIds.includes(u.id) || !S.claims.some(x => x.memberIds.includes(u.id))).map(u => `<option value="${esc(u.id)}" ${u.id === c.id ? "selected" : ""}>${esc(u.name)}</option>`).join("")}
+        </select><small>Zur Auswahl stehen dieses Team und Konten ohne Gebiet.</small></label>
         <div class="btns">
           ${c.status === "pending" ? `<button class="btn small primary" data-approve="${esc(c.id)}">Freigeben</button>` : `<button class="btn small" data-unapprove="${esc(c.id)}">Freigabe zurücknehmen</button>`}
           <button class="btn small" data-save="${esc(c.id)}">Speichern</button>
@@ -1139,11 +1531,19 @@ function renderAdmin(){
     try{ const res = await S.assets.upload(f); a.mapAssetId = res.id; measureImg(res.url); toast("Karte hochgeladen. Speichern nicht vergessen."); renderAdmin(); }
     catch(e){ toast("Hochladen fehlgeschlagen: " + (e && e.message || "unbekannter Fehler")); }
   };
+  if ($("#eMembers")) nameSuggest($("#eMembers"), S.adminEdit);
   el.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => { S.adminEdit = S.adminEdit === b.dataset.edit ? null : b.dataset.edit; renderAdmin(); });
   el.querySelectorAll("[data-show]").forEach(b => b.onclick = () => select(b.dataset.show, true));
   el.querySelectorAll("[data-approve]").forEach(b => b.onclick = () => adminUpdate(b.dataset.approve, { status: "approved" }, "Gebiet freigegeben"));
   el.querySelectorAll("[data-unapprove]").forEach(b => b.onclick = () => adminUpdate(b.dataset.unapprove, { status: "pending" }, "Freigabe zurückgenommen"));
-  el.querySelectorAll("[data-save]").forEach(b => b.onclick = () => adminUpdate(b.dataset.save, { team: $("#eTeam").value.trim() || "Team", players: Math.max(1, +$("#ePlayers").value || 1) }, "Gebiet gespeichert"));
+  el.querySelectorAll("[data-save]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.save, owner = $("#eOwner").value;
+    const c = S.claims.find(x => x.id === id), players = Math.max(1, +$("#ePlayers").value || 1);
+    await adminUpdate(id, { ...(c && players !== c.players ? { players } : {}), team: $("#eTeam").value.trim() || "Team", color: $("#eColor").value, members: cleanMembers($("#eMembers").value), note: $("#eNote").value.trim() }, "Gebiet gespeichert");
+    if (!owner || owner === id) return;
+    try{ await S.user.moveClaim(id, owner); S.adminEdit = owner; if (S.selected === id) S.selected = owner; delete S.names[owner]; toast("Gebiet gehört jetzt dem neuen Konto"); await loadAccounts(); }
+    catch(e){ toast(errMsg(e)); }
+  });
   el.querySelectorAll("[data-border]").forEach(b => b.onclick = () => {
     const c = S.claims.find(x => x.id === b.dataset.border); if (!c) return;
     startDrawing({ targetId: c.id, players: c.players, color: c.color, pts: c.pts, isAdminEdit: true });
@@ -1188,7 +1588,10 @@ function onSettings(snap){
   drawMapBase(); renderHeader();
   if (boundsChanged) fit();
   measureImg(mapSrc());
-  drawPlots(); renderTeams(); renderMine(); renderAdmin();
+  drawPlots();
+  if (!typing("#pane-teams")) renderTeams();
+  if (!typing("#pane-mine")) renderMine();
+  if (!typing("#pane-admin")) renderAdmin();
 }
 function normClaim(id, v){
   let pts = Array.isArray(v.pts) ? v.pts.map(p => [Math.round(+p.x || 0), Math.round(+p.z || 0)]) : [];
@@ -1196,6 +1599,7 @@ function normClaim(id, v){
   const c = centroid(pts);
   return {
     id, pts, bb: bbox(pts), area: area(pts), perim: perim(pts, true), cx: Math.round(c[0]), cz: Math.round(c[1]),
+    memberIds: Array.isArray(v.memberIds) && v.memberIds.length ? v.memberIds : [id],
     team: String(v.team || "Team"), players: Math.max(1, +v.players || 1), color: COLORS.includes(v.color) ? v.color : "#F4C04E",
     members: String(v.members || ""), note: String(v.note || ""), status: v.status === "pending" ? "pending" : "approved"
   };
@@ -1205,30 +1609,93 @@ function onClaims(snap){
   S.claims = snap.docs.filter(d => d.exists).map(d => normClaim(d.id, d.data()));
   if (S.selected && !S.claims.some(c => c.id === S.selected)) S.selected = null;
   if (S.placing && S.placing.closed){ revalidate(); updateBudget(); }
-  drawPlots(); renderTeams(); if (!S.draft || !S.draft.editing) renderMine(); if (S.isAdmin) renderAdmin();
+  drawPlots();
+  if (!typing("#pane-teams")) renderTeams();
+  if ((!S.draft || !S.draft.editing) && !typing("#pane-mine")) renderMine();
+  if (S.isAdmin){ if (!typing("#pane-admin")) renderAdmin(); renderAccounts(); }
   resolveNames();
 }
 
 async function init(){
-  drawMapBase(); renderHeader(); fit(); drawPlots(); renderTeams(); renderMine();
-  if (!window.claude || !window.claude.use){ S.loaded = true; renderTeams(); renderMine(); return; }
   const [db, user, assets, downloads] = await Promise.all(["db", "user", "assets", "downloads"].map(n => window.claude.use(n).catch(() => null)));
+  const me = await user.me().catch(() => ({ id: null }));
+  if (!me.id) return showGate(user, me);
+  $("#shell").hidden = false;
   S.db = db; S.user = user; S.assets = assets; S.downloads = downloads;
-  if (user){
-    try{ S.uid = await user.id(); }catch(e){}
-    try{ S.isAdmin = await user.canEdit(); }catch(e){}
-    try{ S.canWrite = await user.can("data.write"); }catch(e){}
-  }
-  if (S.canWrite === false && !S.isAdmin) S.readOnly = true;
-  if (!S.uid) S.readOnly = true;
+  S.uid = me.id; S.meName = me.name; S.isAdmin = me.isAdmin; S.unpaid = !me.paid;
+  setupAuth(me); loadTerrain(); loadNames();
+  drawMapBase(); renderHeader(); fit(); drawPlots(); renderTeams(); renderMine();
   document.querySelector('[data-tab="admin"]').hidden = !S.isAdmin;
-  if (!db){ S.loaded = true; renderTeams(); renderMine(); return; }
+  document.querySelector('[data-tab="accounts"]').hidden = !S.isAdmin;
+  if (S.isAdmin) loadAccounts();
   const timer = setTimeout(() => { if (!S.loaded){ S.slow = true; renderTeams(); } }, 10000);
   db.doc("settings/main").onSnapshot(onSettings, () => {});
   db.collection("claims").onSnapshot(s => { clearTimeout(timer); onClaims(s); }, () => { clearTimeout(timer); S.loaded = true; S.slow = true; renderTeams(); });
   renderMine(); renderAdmin();
 }
 init();
+</script>
+<script>
+/* ---------- Design-Zusatz (nur Optik) ----------
+   Blendet das Seitenblatt ein und aus, versteckt es beim Einzeichnen, füllt den Bildschirm beim Start
+   mit der Karte und rückt ein ausgewähltes Gebiet neben das Blatt. Liest nur den Zustand und ruft
+   vorhandene Funktionen auf (setTab, stopDrawing, flyTo, applyVB); die Logik oben bleibt unverändert. */
+(() => {
+  const body = document.body, panel = document.querySelector(".panel"), nav = document.querySelector(".tabs");
+  const mobile = () => matchMedia("(max-width: 860px)").matches;
+  const isOpen = () => body.classList.contains("sheet-open");
+  function aimAtTab(){
+    const t = document.querySelector('.tab[aria-selected="true"]:not([hidden])'); if (!t) return;
+    const r = t.getBoundingClientRect();
+    panel.style.setProperty("--ox", (r.left + r.width / 2 - panel.offsetLeft) + "px");
+    panel.style.setProperty("--oy", (r.top + r.height / 2 - panel.offsetTop) + "px");
+  }
+  const setSheet = on => { aimAtTab(); body.classList.toggle("sheet-open", on); };
+  addEventListener("resize", aimAtTab);
+
+  // Tab antippen öffnet das Blatt, derselbe Tab nochmal schließt es
+  let wasActive = false;
+  nav.addEventListener("click", e => { const t = e.target.closest(".tab"); wasActive = !!t && isOpen() && t.getAttribute("aria-selected") === "true"; }, true);
+  nav.addEventListener("click", e => { if (e.target.closest(".tab")) setSheet(!wasActive); });
+  document.getElementById("sheetX").onclick = () => { setSheet(false); if (S.selected) select(null); };
+
+  // Wechselt das Skript selbst den Tab (z. B. „Gebiet claimen“), geht das Blatt auf
+  new MutationObserver(ms => { if (ms.some(m => m.target.classList.contains("pane") && !m.target.hidden)) setSheet(true); })
+    .observe(panel, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
+
+  // Gebiet auf der Karte angetippt: Blatt mit den Details öffnen; Tipp ins Leere schließt es
+  let lastSel = null;
+  new MutationObserver(() => { if (S.selected && S.selected !== lastSel) setSheet(true); lastSel = S.selected; })
+    .observe(document.getElementById("pane-teams"), { childList: true });
+  document.getElementById("map").addEventListener("pointerup", () => {
+    if (!moved && !S.placing && !S.selected && ptrs.size === 0) setSheet(false);
+  });
+
+  // Beim Einzeichnen nur Karte und Zeichenleiste zeigen
+  const banner = document.getElementById("banner");
+  new MutationObserver(() => body.classList.toggle("drawing", banner.classList.contains("on")))
+    .observe(banner, { attributes: true, attributeFilter: ["class"] });
+
+  // Esc: Einzeichnen abbrechen oder Blatt schließen
+  addEventListener("keydown", e => {
+    if (e.key !== "Escape" || document.querySelector("dialog[open]") || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+    if (S.placing) stopDrawing(); else setSheet(false);
+  });
+
+  // Ausgewähltes Gebiet in die Mitte des freien Bereichs neben/über dem Blatt fliegen
+  function fitClaim(c){
+    const W = innerWidth, H = innerHeight;
+    const ins = !isOpen() ? { l: 0, b: 0 } : mobile() ? { l: 0, b: H - panel.offsetTop } : { l: panel.offsetLeft + panel.offsetWidth, b: 0 };
+    const b = c.bb, visW = Math.max(120, W - ins.l), visH = Math.max(120, H - ins.b);
+    const w = Math.max((b.x1 - b.x0) * 2.4 * W / visW, (b.z1 - b.z0) * 2.4 / aspect() * H / visH, 240), h = w * aspect();
+    flyTo((b.x0 + b.x1) / 2 - ins.l / 2 * w / W, (b.z0 + b.z1) / 2 + ins.b / 2 * h / H, w);
+  }
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".item, #mShow, [data-show]")) return;
+    const c = S.claims.find(x => x.id === S.selected); if (c) fitClaim(c);
+  });
+
+})();
 </script>
 </body>
 </html>

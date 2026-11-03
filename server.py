@@ -3,19 +3,17 @@
 
 Start:  python3 server.py            (Port 8080)
         python3 server.py 9000       (anderer Port)
-Admin:  Passwort steht in admin_token.txt (oder ADMIN_TOKEN=geheim python3 server.py).
-        Einmal  http://server:8080/?admin=geheim  öffnen – der Browser merkt es sich.
+Admin:  Beim ersten Start wird das Konto "admin" angelegt und sein Passwort einmal in der
+        Konsole ausgegeben (oder ADMIN_USER=… ADMIN_PASSWORD=… python3 server.py).
+        Passwort vergessen:  python3 server.py --reset-admin
 
 Daten liegen in data.json, hochgeladene Karten in uploads/.
 
-Accounts, zwei Modi:
-- Ohne config.json (Standard): Jeder Browser erzeugt ein zufälliges Geheimnis und schickt
-  es als X-Account. Die Account-ID ist ein HMAC davon.
-- Mit Discord (config.json, siehe config.example.json): Login über Discord, Sitzung als
-  signiertes Cookie. Account-ID = HMAC der Discord-ID. Alte Browser-Gebiete werden beim
-  ersten Discord-Login übernommen (/api/link). Admins: Discord-IDs in "admins".
+Konten: Spieler melden sich über Discord an (OAuth2). Beim ersten Login entsteht automatisch ein
+Konto, das über die Discord-ID fest zugeordnet bleibt. Der Admin meldet sich mit Name + Passwort an
+(PBKDF2-Hash). Ohne Anmeldung liefert der Server nur die Anmeldeseite aus.
+Discord einrichten: DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI (siehe README).
 """
-import base64
 import datetime
 import hashlib
 import hmac
@@ -30,7 +28,6 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from http.cookies import SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -38,39 +35,6 @@ PUBLIC = os.path.join(ROOT, "public")
 DATA = os.path.join(ROOT, "data.json")
 UPLOADS = os.path.join(ROOT, "uploads")
 OLD_CLAIMS = os.path.join(ROOT, "claims.json")      # Format der alten Rechteck-Plots
-TOKEN_FILE = os.path.join(ROOT, "admin_token.txt")
-CONFIG_FILE = os.path.join(ROOT, "config.json")
-SESSION_DAYS = 30
-DISCORD_AUTHORIZE = os.environ.get("DISCORD_AUTHORIZE", "https://discord.com/oauth2/authorize")
-DISCORD_API = os.environ.get("DISCORD_API", "https://discord.com/api/v10")
-
-
-def load_config():
-    try:
-        with open(CONFIG_FILE, encoding="utf-8") as f:
-            cfg = json.load(f)
-    except FileNotFoundError:
-        cfg = {}
-    d = cfg.get("discord") or {}
-    cfg["discord"] = {"client_id": os.environ.get("DISCORD_CLIENT_ID", d.get("client_id", "")),
-                      "client_secret": os.environ.get("DISCORD_CLIENT_SECRET", d.get("client_secret", ""))}
-    cfg["public_url"] = os.environ.get("PUBLIC_URL", cfg.get("public_url", "")).rstrip("/")
-    cfg["admins"] = {str(a) for a in cfg.get("admins", [])}
-    return cfg
-
-
-CONFIG = load_config()
-DISCORD = bool(CONFIG["discord"]["client_id"] and CONFIG["discord"]["client_secret"])
-
-
-def admin_token():
-    t = os.environ.get("ADMIN_TOKEN")
-    if t:
-        return t
-    try:
-        return open(TOKEN_FILE).read().strip() or None
-    except FileNotFoundError:
-        return None
 
 DEFAULTS = {
     "title": "EL-SMP Season 5",
@@ -88,8 +52,18 @@ COLORS = ["#E8553E", "#F29C38", "#F5D547", "#8BC34A", "#2FA36B", "#36B6C9",
 MAX_POINTS = 60
 CLAIM_FIELDS = {"team", "players", "color", "members", "note", "pts", "x", "z", "status",
                 "createdAt", "updatedAt"}
+PW_ITERATIONS = 300_000
+SESSION_DAYS = 30
+COOKIE = "elsmp_session"
+OPEN_PATHS = {"/", "/index.html", "/backend.js", "/api/me", "/favicon.ico",     # ohne Anmeldung erreichbar
+              "/api/discord/login", "/api/discord/callback"}
+DISCORD_API = "https://discord.com/api/v10"
+DISCORD_AUTHORIZE = "https://discord.com/oauth2/authorize"
+STATE_COOKIE = "elsmp_oauth"
+MAX_FAILS, FAIL_WINDOW = 8, 300                     # Fehlversuche pro IP+Name, Sekunden
 
 lock = threading.Lock()
+fails, fails_lock = {}, threading.Lock()
 
 
 class ApiError(Exception):
@@ -117,7 +91,7 @@ def save(db):
 
 def migrate():
     """Erster Start: neues Format anlegen und alte Rechteck-Plots übernehmen."""
-    db = {"version": 1, "key": secrets.token_hex(32), "settings": dict(DEFAULTS), "claims": {}}
+    db = {"version": 1, "key": secrets.token_hex(32), "settings": dict(DEFAULTS), "claims": {}, "users": {}}
     try:
         old = json.load(open(OLD_CLAIMS, encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
@@ -148,50 +122,153 @@ def account_id(db, secret):
     return hmac.new(db["key"].encode(), secret.encode(), hashlib.sha256).hexdigest()[:16]
 
 
-# ------------------------------------------------------------------ Discord-Login + Sitzungen
-def b64(b):
-    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+# ------------------------------------------------------------------ Konten
+def hash_pw(pw, salt=None, iters=PW_ITERATIONS):
+    salt = salt or secrets.token_bytes(16)
+    h = hashlib.pbkdf2_hmac("sha256", pw.encode(), salt, iters)
+    return f"{iters}${salt.hex()}${h.hex()}"
 
 
-def unb64(s):
-    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+def check_pw(pw, stored):
+    iters, salt, _ = stored.split("$")
+    return hmac.compare_digest(hash_pw(pw, bytes.fromhex(salt), int(iters)), stored)
 
 
-def sign(db, payload):
-    return b64(hmac.new(db["key"].encode(), b"session:" + payload.encode(), hashlib.sha256).digest())
+DUMMY_HASH = hash_pw(secrets.token_hex(8))          # gleiche Laufzeit, wenn es den Namen nicht gibt
 
 
-def make_session(db, uid, did):
-    payload = b64(json.dumps({"u": uid, "d": did, "e": int(time.time()) + SESSION_DAYS * 86400}).encode())
-    return payload + "." + sign(db, payload)
+def new_password():
+    return secrets.token_urlsafe(9)
 
 
-def read_session(db, value):
-    try:
-        payload, sig = value.split(".", 1)
-        if not hmac.compare_digest(sig, sign(db, payload)):
-            return None
-        s = json.loads(unb64(payload))
-        return s if s["e"] > time.time() else None
-    except (ValueError, KeyError, TypeError, json.JSONDecodeError):
-        return None
+def clean_password(pw):
+    if not isinstance(pw, str) or not 8 <= len(pw) <= 128:
+        raise ApiError("invalid", "Das Passwort braucht 8 bis 128 Zeichen.")
+    return pw
+
+
+def clean_name(name):
+    if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_]{3,16}", name.strip()):
+        raise ApiError("invalid", "Der Name braucht 3 bis 16 Zeichen: Buchstaben, Zahlen und _ (wie in Minecraft).")
+    return name.strip()
+
+
+def find_user(db, name):
+    for uid, u in db["users"].items():
+        if u["name"].lower() == name.lower():
+            return uid, u
+    return None, None
+
+
+def add_user(db, name, pw_hash=None, role="player", must_change=False, **extra):
+    uid = secrets.token_hex(8)
+    db["users"][uid] = {"name": name, "pw": pw_hash, "role": role, "active": True, "gen": 0,
+                        "mustChange": must_change, "createdAt": int(time.time() * 1000),
+                        "uuid": "", "discordId": None,
+                        "paid": True, "listed": True, **extra}
+    return uid
+
+
+def public_user(uid, u):
+    return {"id": uid, "name": u["name"], "role": u["role"], "active": u["active"], "paid": u["paid"],
+            "listed": u["listed"], "mustChange": u["mustChange"], "createdAt": u["createdAt"]}
+
+
+def session_token(db, uid):
+    payload = f"{uid}.{int(time.time()) + SESSION_DAYS * 86400}.{db['users'][uid]['gen']}"
+    sig = hmac.new(db["key"].encode(), ("session:" + payload).encode(), hashlib.sha256).hexdigest()
+    return payload + "." + sig
+
+
+def session_user(db, token):
+    """Gibt (uid, Konto) zurück, wenn das Cookie echt, nicht abgelaufen und noch gültig ist."""
+    parts = token.split(".")
+    if len(parts) != 4:
+        return None, None
+    uid, exp, gen, sig = parts
+    payload = f"{uid}.{exp}.{gen}"
+    good = hmac.new(db["key"].encode(), ("session:" + payload).encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig.encode(), good.encode()):
+        return None, None
+    u = db["users"].get(uid)
+    if not u or not u["active"] or not u["listed"] or str(u["gen"]) != gen or int(exp) < time.time():
+        return None, None
+    return uid, u
+
+
+def too_many_fails(key):
+    with fails_lock:
+        e = fails.get(key)
+        return bool(e and e[0] >= MAX_FAILS and time.time() - e[1] < FAIL_WINDOW)
+
+
+def note_fail(key):
+    now = time.time()
+    with fails_lock:
+        for k in [k for k, e in fails.items() if now - e[1] >= FAIL_WINDOW]:
+            del fails[k]
+        e = fails.setdefault(key, [0, now])
+        e[0] += 1
+
+
+# ------------------------------------------------------------------ Discord-Anmeldung
+def discord_config():
+    cid, secret, redirect = (os.environ.get(k) for k in ("DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_REDIRECT_URI"))
+    return (cid, secret, redirect) if cid and secret and redirect else None
 
 
 def discord_request(url, data=None, token=None):
-    headers = {"User-Agent": "EL-SMP-Gebiete (https://github.com/Toastbrot008/minecraft-plots, 1.0)",
-               "Accept": "application/json"}
+    # Ohne eigenen User-Agent blockt Discord die Anfrage
+    headers = {"User-Agent": "DiscordBot (el-smp-gebiete, 1.0)", "Accept": "application/json"}
     if token:
         headers["Authorization"] = "Bearer " + token
-    body = None
-    if data is not None:
-        body = urllib.parse.urlencode(data).encode()
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
-    try:
-        with urllib.request.urlopen(urllib.request.Request(url, body, headers), timeout=15) as r:
-            return json.load(r)
-    except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
-        print("Discord-Anfrage fehlgeschlagen:", url, e, file=sys.stderr)
-        return None
+    body = urllib.parse.urlencode(data).encode() if data else None
+    with urllib.request.urlopen(urllib.request.Request(url, data=body, headers=headers), timeout=10) as f:
+        return json.load(f)
+
+
+def discord_profile(code, cfg):
+    """Tauscht den Code gegen das Discord-Profil. Das Token wird danach nicht mehr gebraucht."""
+    cid, secret, redirect = cfg
+    token = discord_request(DISCORD_API + "/oauth2/token", {"client_id": cid, "client_secret": secret, "code": code,
+                                                            "grant_type": "authorization_code", "redirect_uri": redirect})
+    me = discord_request(DISCORD_API + "/users/@me", token=token["access_token"])
+    return str(me["id"]), str(me["username"])
+
+
+def discord_account(db, did, username):
+    """Findet das Konto zur Discord-ID oder legt es beim ersten Login an."""
+    other = find_user(db, username)[0]
+    for uid, u in db["users"].items():
+        if u["discordId"] == did:
+            if not other:                        # Name bei Discord geändert: hier mitziehen
+                u["name"] = username
+            return uid, u
+    name = f"{username}_{did[-4:]}" if other else username
+    uid = add_user(db, name, discordId=did)
+    return uid, db["users"][uid]
+
+
+def ensure_admin(reset=False):
+    """Legt beim ersten Start das Admin-Konto an; reset=True vergibt ein neues Passwort."""
+    with lock:
+        db = load()
+        db.setdefault("users", {})
+        uid = next((k for k, u in db["users"].items() if u["role"] == "admin"), None)
+        if uid and not reset:
+            return
+        given = os.environ.get("ADMIN_PASSWORD")
+        pw = given or new_password()
+        if uid:
+            u = db["users"][uid]
+            u.update(pw=hash_pw(pw), gen=u["gen"] + 1, active=True, mustChange=not given)
+        else:
+            name = clean_name(os.environ.get("ADMIN_USER", "admin"))
+            uid = add_user(db, name, hash_pw(pw), role="admin", must_change=not given)
+        save(db)
+        print(f"Admin-Konto: {db['users'][uid]['name']}")
+        if not given:
+            print(f"Passwort (wird nur jetzt angezeigt): {pw}")
 
 
 # ------------------------------------------------------------------ Geometrie (wie in index.html)
@@ -292,6 +369,48 @@ def check_poly(p, st, others):
     return None
 
 
+# ------------------------------------------------------------------ Teams
+def member_ids(cid, c):
+    """Konten eines Gebiets. Der Schlüssel des Gebiets (cid) ist das Konto, das es erstellt hat."""
+    return c.get("memberIds") or [cid]
+
+
+def team_of(db, uid):
+    for cid, c in db["claims"].items():
+        if uid in member_ids(cid, c):
+            return cid, c
+    return None, None
+
+
+def set_members(db, c, ids):
+    c["memberIds"] = ids
+    c["members"] = ", ".join(db["users"][i]["name"] for i in ids if i in db["users"] and db["users"][i]["role"] != "admin")
+
+
+def resolve_members(db, cid, text, editor):
+    """Macht aus den eingetragenen Namen Konten. Ersteller und Bearbeiter sind immer dabei,
+    niemand darf in zwei Teams stehen."""
+    ids = []
+    for uid in (cid, editor):
+        u = db["users"].get(uid)
+        if u and u["role"] != "admin" and uid not in ids:
+            ids.append(uid)
+    for raw in text.split(","):
+        name = raw.strip()
+        if not name:
+            continue
+        uid, u = find_user(db, name)
+        if not u or u["role"] == "admin":
+            raise ApiError("invalid", f"„{name}“ hat sich noch nie angemeldet.")
+        if uid not in ids:
+            ids.append(uid)
+    for uid in ids:
+        other, team = team_of(db, uid)
+        if other and other != cid:
+            raise ApiError("invalid", f"„{db['users'][uid]['name']}“ ist schon im Team „{team['team']}“.")
+    return ids
+
+
 # ------------------------------------------------------------------ Regeln
 def claims_open(st):
     if not st.get("open"):
@@ -339,16 +458,27 @@ def clean_claim(d):
 def write_claim(db, uid, cid, body, merge, admin):
     """set (merge=False) oder update (merge=True) von claims/<cid>, mit Prüfung."""
     st, claims = db["settings"], db["claims"]
-    if not admin and uid != cid:
-        raise ApiError("forbidden", "Du kannst nur dein eigenes Gebiet ändern.", 403)
     existing = claims.get(cid)
+    if not admin:
+        if uid not in (member_ids(cid, existing) if existing else [cid]):
+            raise ApiError("forbidden", "Du kannst nur dein eigenes Gebiet ändern.", 403)
+        other, team = team_of(db, uid)
+        if other and other != cid:
+            raise ApiError("invalid", f"Du bist schon im Team „{team['team']}“ und kannst kein eigenes Gebiet erstellen.")
     if merge and existing is None:
         raise ApiError("not_found", "Gebiet existiert nicht.", 404)
     patch = clean_claim(body)
     new = {**existing, **patch} if merge else patch
     now = int(time.time() * 1000)
+    old_ids = member_ids(cid, existing) if existing else []
+    ids = old_ids
+    if "members" in patch or not existing:
+        ids = resolve_members(db, cid, patch.get("members", ""), None if admin else uid)
+        set_members(db, new, ids)
 
     if not admin:
+        if not db["users"][uid]["paid"]:
+            raise ApiError("not_paid", "Deine Zahlung ist noch nicht eingetragen. Frag einen Admin.", 403)
         if not claims_open(st):
             raise ApiError("closed", "Das Claimen ist geschlossen.", 403)
         # Status bestimmt der Server, nicht der Browser
@@ -359,8 +489,11 @@ def write_claim(db, uid, cid, body, merge, admin):
         dup = next((c for k, c in claims.items() if k != cid and c["team"].lower() == new["team"].lower()), None)
         if dup:
             raise ApiError("invalid", f"Den Teamnamen „{dup['team']}“ gibt es schon.")
-        if not st["minPlayers"] <= new.get("players", 0) <= st["maxPlayers"]:
-            raise ApiError("invalid", f"Erlaubt sind {st['minPlayers']} bis {st['maxPlayers']} Spieler pro Team.")
+        # Die Spielerzahl zählt der Server selbst, sie bestimmt auch die erlaubte Grenzlänge
+        new["players"] = len(ids)
+        if not st["minPlayers"] <= new["players"] <= st["maxPlayers"]:
+            raise ApiError("invalid", f"Erlaubt sind {st['minPlayers']} bis {st['maxPlayers']} Spieler pro Team, "
+                                      f"ihr wärt {new['players']}.")
         if new.get("color") not in COLORS:
             raise ApiError("invalid", "Bitte eine Teamfarbe wählen.")
         pts = [(p["x"], p["z"]) for p in new.get("pts", [])]
@@ -374,6 +507,8 @@ def write_claim(db, uid, cid, body, merge, admin):
         new["z"] = round(sum(p[1] for p in pts) / len(pts))
     elif not new.get("pts"):
         raise ApiError("invalid", "Gebiet ohne Grenzpunkte.")
+    elif ids != old_ids and "players" not in patch:
+        new["players"] = max(1, len(ids))
     new["updatedAt"] = now
     claims[cid] = new
 
@@ -415,17 +550,19 @@ class Handler(SimpleHTTPRequestHandler):
     def end_headers(self):
         # Kacheln dürfen gecacht werden, die Seite selbst nicht (sonst sieht man Updates nicht)
         if self.path.startswith("/terrain/") or self.path.startswith("/_blob/"):
-            self.send_header("Cache-Control", "public, max-age=3600")
+            self.send_header("Cache-Control", "private, max-age=3600")
         elif not self.path.startswith("/api/"):
             self.send_header("Cache-Control", "no-cache")
         super().end_headers()
 
-    def send_json(self, code, obj):
+    def send_json(self, code, obj, cookie=None):
         body = json.dumps(obj, ensure_ascii=False).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if cookie is not None:
+            self.send_header("Set-Cookie", self.cookie_header(cookie))
         self.end_headers()
         self.wfile.write(body)
 
@@ -435,92 +572,52 @@ class Handler(SimpleHTTPRequestHandler):
             raise ApiError("too_large", "Anfrage zu groß.", 413)
         return self.rfile.read(n)
 
-    def cookie(self, name):
-        c = SimpleCookie()
-        try:
-            c.load(self.headers.get("Cookie", ""))
-        except Exception:
-            return None
-        return c[name].value if name in c else None
+    def cookie_header(self, value):
+        # Leerer Wert = abmelden. Secure nur hinter einem HTTPS-Proxy, sonst käme das Cookie nie zurück
+        age = SESSION_DAYS * 86400 if value else 0
+        secure = "; Secure" if self.headers.get("X-Forwarded-Proto") == "https" else ""
+        return f"{COOKIE}={value}; Path=/; Max-Age={age}; HttpOnly; SameSite=Strict{secure}"
 
-    def session(self, db):
-        v = self.cookie("elsmp_session")
-        return read_session(db, v) if v else None
+    def json_body(self):
+        body = json.loads(self.body() or b"{}")
+        if not isinstance(body, dict):
+            raise ApiError("invalid", "Ungültige Daten.")
+        return body
+
+    def cookie(self, name):
+        for part in self.headers.get("Cookie", "").split(";"):
+            k, _, v = part.strip().partition("=")
+            if k == name:
+                return v
+        return None
 
     def who(self, db):
-        expected = admin_token()
-        given = self.headers.get("X-Admin", "")
-        admin = bool(expected and given and hmac.compare_digest(given, expected))
-        if DISCORD:
-            s = self.session(db)
-            uid = s["u"] if s else None
-            admin = admin or bool(s and s["d"] in CONFIG["admins"])
-        else:
-            secret = self.headers.get("X-Account", "")
-            uid = account_id(db, secret) if len(secret) >= 16 else None
-        return uid, admin
+        token = self.cookie(COOKIE)
+        if token is None:
+            return None, False
+        uid, u = session_user(db, token)
+        return uid, bool(u and u["role"] == "admin")
 
-    def base_url(self):
-        return CONFIG["public_url"] or "http://" + self.headers.get("Host", "localhost")
-
-    def set_cookie_header(self, name, value, max_age, path="/"):
-        secure = "; Secure" if self.base_url().startswith("https://") else ""
-        self.send_header("Set-Cookie", f"{name}={value}; Path={path}; Max-Age={max_age}; HttpOnly; SameSite=Lax{secure}")
-
-    def redirect(self, to, cookies=()):
+    def redirect(self, location, *cookies):
         self.send_response(302)
-        self.send_header("Location", to)
-        for c in cookies:
-            self.set_cookie_header(*c)
+        self.send_header("Location", location)
         self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        for c in cookies:
+            self.send_header("Set-Cookie", c)
         self.end_headers()
 
-    def auth_page(self, msg):
-        body = (f'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
-                f'<title>Login</title><body style="font-family:sans-serif;padding:24px">'
-                f'<p>{msg}</p><p><a href="/">Zurück zur Karte</a></p>').encode()
-        self.send_response(400)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+    def state_cookie(self, value):
+        # Lax statt Strict: Das Cookie muss den Rücksprung von discord.com überstehen
+        secure = "; Secure" if self.headers.get("X-Forwarded-Proto") == "https" else ""
+        age = 600 if value else 0
+        return f"{STATE_COOKIE}={value}; Path=/api/discord; Max-Age={age}; HttpOnly; SameSite=Lax{secure}"
 
-    def auth_start(self):
-        if not DISCORD:
-            return self.auth_page("Discord-Login ist auf diesem Server nicht eingerichtet.")
-        state = secrets.token_urlsafe(16)
-        q = urllib.parse.urlencode({"client_id": CONFIG["discord"]["client_id"], "response_type": "code",
-                                    "redirect_uri": self.base_url() + "/auth/discord/callback",
-                                    "scope": "identify", "state": state, "prompt": "none"})
-        self.redirect(DISCORD_AUTHORIZE + "?" + q, [("elsmp_oauth", state, 600, "/auth")])
-
-    def auth_callback(self):
-        if not DISCORD:
-            return self.auth_page("Discord-Login ist auf diesem Server nicht eingerichtet.")
-        q = urllib.parse.parse_qs(self.path.partition("?")[2])
-        code, state = q.get("code", [""])[0], q.get("state", [""])[0]
-        expected = self.cookie("elsmp_oauth") or ""
-        if not code or not expected or not hmac.compare_digest(state, expected):
-            return self.auth_page("Login abgebrochen oder abgelaufen. Bitte noch einmal versuchen.")
-        tok = discord_request(DISCORD_API + "/oauth2/token", {
-            "client_id": CONFIG["discord"]["client_id"], "client_secret": CONFIG["discord"]["client_secret"],
-            "grant_type": "authorization_code", "code": code,
-            "redirect_uri": self.base_url() + "/auth/discord/callback"})
-        user = tok and tok.get("access_token") and discord_request(DISCORD_API + "/users/@me", token=tok["access_token"])
-        if not user or "id" not in user:
-            return self.auth_page("Discord hat den Login nicht bestätigt. Bitte noch einmal versuchen.")
-        did = str(user["id"])
-        name = str(user.get("global_name") or user.get("username") or "?")[:40]
-        with lock:
-            db = load()
-            uid = account_id(db, "discord:" + did)
-            db.setdefault("users", {})[uid] = {"name": name, "discord": did, "login": int(time.time())}
-            save(db)
-            cookie = make_session(db, uid, did)
-        self.redirect("/", [("elsmp_session", cookie, SESSION_DAYS * 86400), ("elsmp_oauth", "", 0, "/auth")])
-
-    def auth_logout(self):
-        self.redirect("/", [("elsmp_session", "", 0)])
+    def require_admin(self, db):
+        uid, admin = self.who(db)
+        if not admin:
+            raise ApiError("forbidden", "Nur Admins.", 403)
+        return uid
 
     def api(self, fn):
         try:
@@ -531,18 +628,35 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json(400, {"code": "invalid", "error": "Ungültige Daten."})
 
     # --- GET
+    def blocked(self, path):
+        """Alles außer der Anmeldeseite gibt es nur mit Anmeldung."""
+        if path in OPEN_PATHS:
+            return False
+        with lock:
+            db = load()
+        return not self.who(db)[0]
+
+    def do_HEAD(self):
+        if self.blocked(self.path.split("?", 1)[0]):
+            return self.send_error(401)
+        return super().do_HEAD()
+
     def do_GET(self):
         path = self.path.split("?", 1)[0]
+        if self.blocked(path):
+            return self.send_json(401, {"code": "login", "error": "Bitte melde dich an."})
+        if path == "/api/discord/login":
+            return self.discord_login()
+        if path == "/api/discord/callback":
+            return self.discord_callback()
         if path == "/api/state":
             return self.api(self.get_state)
         if path == "/api/me":
             return self.api(self.get_me)
-        if path == "/auth/discord":
-            return self.auth_start()
-        if path == "/auth/discord/callback":
-            return self.auth_callback()
-        if path == "/auth/logout":
-            return self.auth_logout()
+        if path == "/api/users":
+            return self.api(self.get_users)
+        if path == "/api/names":
+            return self.api(self.get_names)
         if path.startswith("/_blob/"):
             return self.get_blob(path[7:])
         return super().do_GET()
@@ -553,18 +667,30 @@ class Handler(SimpleHTTPRequestHandler):
             db = load()
         if q.get("v") == str(db["version"]):
             return self.send_json(200, {"version": db["version"], "unchanged": True})
-        users = db.get("users", {})
-        names = {k: users[k]["name"] for k in db["claims"] if k in users}
-        self.send_json(200, {"version": db["version"], "settings": db["settings"], "claims": db["claims"],
-                             "names": names})
+        self.send_json(200, {"version": db["version"], "settings": db["settings"], "claims": db["claims"]})
 
     def get_me(self):
         with lock:
             db = load()
         uid, admin = self.who(db)
-        self.send_json(200, {"id": uid, "isAdmin": admin, "adminConfigured": bool(admin_token()),
-                             "auth": "discord" if DISCORD else "browser",
-                             "name": db.get("users", {}).get(uid, {}).get("name") if uid else None})
+        u = db["users"].get(uid) if uid else None
+        self.send_json(200, {"id": uid, "isAdmin": admin, "name": u["name"] if u else None,
+                             "mustChange": bool(u and u["mustChange"]), "paid": bool(u and u["paid"]),
+                             "discordEnabled": bool(discord_config())})
+
+    def get_users(self):
+        with lock:
+            db = load()
+        self.require_admin(db)
+        users = [public_user(k, u) for k, u in db["users"].items()]
+        self.send_json(200, {"users": sorted(users, key=lambda u: u["name"].lower())})
+
+    def get_names(self):
+        """Minecraft-Namen für die Vorschläge bei „Mitglieder“; alles andere bleibt beim Admin."""
+        with lock:
+            db = load()
+        names = [u["name"] for u in db["users"].values() if u["role"] != "admin" and u["listed"]]
+        self.send_json(200, {"names": sorted(names, key=str.lower)})
 
     def get_blob(self, name):
         if not re.fullmatch(r"[0-9a-f]{16}\.(png|jpg|webp)", name):
@@ -581,60 +707,169 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     # --- Schreiben
-    def csrf_ok(self):
-        # Eigener Header erzwingt bei fremden Seiten einen CORS-Preflight, den wir nie erlauben
-        if self.headers.get("X-ELSMP") == "1":
-            return True
-        self.send_json(403, {"code": "forbidden", "error": "Anfrage abgelehnt."})
-        return False
-
     def do_PUT(self):
-        if self.csrf_ok():
-            self.api(lambda: self.write(merge=False))
+        self.api(lambda: self.write(merge=False))
 
     def do_PATCH(self):
-        if self.csrf_ok():
-            self.api(lambda: self.write(merge=True))
+        if m := re.fullmatch(r"/api/users/([0-9a-f]{16})", self.path):
+            return self.api(lambda: self.update_user(m.group(1)))
+        self.api(lambda: self.write(merge=True))
 
     def do_DELETE(self):
-        if self.csrf_ok():
-            self.api(self.delete)
+        self.api(self.delete)
 
     def do_POST(self):
-        if not self.csrf_ok():
-            return
-        if self.path == "/api/map":
-            return self.api(self.upload_map)
-        if self.path == "/api/link":
-            return self.api(self.link_legacy)
+        routes = {"/api/map": self.upload_map, "/api/login": self.login, "/api/logout": self.logout,
+                  "/api/password": self.change_password}
+        if self.path in routes:
+            return self.api(routes[self.path])
+        if m := re.fullmatch(r"/api/claims/([0-9a-f]{16})/owner", self.path):
+            return self.api(lambda: self.move_claim(m.group(1)))
+        if m := re.fullmatch(r"/api/claims/([0-9a-f]{16})/leave", self.path):
+            return self.api(lambda: self.leave_team(m.group(1)))
         self.send_json(404, {"code": "not_found", "error": "Nicht gefunden"})
 
-    def link_legacy(self):
-        """Gebiet eines alten Browser-Accounts auf den Discord-Account übertragen."""
-        secret = self.headers.get("X-Account", "")
+    # --- Anmeldung
+    def discord_login(self):
+        cfg = discord_config()
+        if not cfg:
+            return self.redirect("/?login_error=not_configured")
+        state = secrets.token_urlsafe(24)
+        query = urllib.parse.urlencode({"client_id": cfg[0], "redirect_uri": cfg[2], "response_type": "code",
+                                        "scope": "identify", "state": state})
+        self.redirect(DISCORD_AUTHORIZE + "?" + query, self.state_cookie(state))
+
+    def discord_callback(self):
+        q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+        clear = self.state_cookie("")
+        fail = lambda code: self.redirect("/?login_error=" + code, clear)
+        state, expected = q.get("state", [""])[0], self.cookie(STATE_COOKIE)
+        if not state or not expected or not hmac.compare_digest(state.encode(), expected.encode()):
+            return fail("state")
+        cfg = discord_config()
+        if not cfg:
+            return fail("not_configured")
+        if "code" not in q:
+            return fail("cancelled")
+        try:
+            did, username = discord_profile(q["code"][0], cfg)
+        except (OSError, ValueError, KeyError, urllib.error.URLError) as e:
+            sys.stderr.write(f"Discord-Anmeldung fehlgeschlagen: {type(e).__name__}\n")
+            return fail("discord_failed")
         with lock:
             db = load()
-            s = self.session(db) if DISCORD else None
-            if not s:
-                raise ApiError("forbidden", "Nicht angemeldet.", 403)
-            if len(secret) < 16:
-                return self.send_json(200, {"moved": False, "reason": "none"})
-            old, new = account_id(db, secret), s["u"]
-            claims = db["claims"]
-            if old not in claims:
-                return self.send_json(200, {"moved": False, "reason": "none"})
-            if new in claims:
-                return self.send_json(200, {"moved": False, "reason": "both"})
-            claims[new] = claims.pop(old)
+            uid, u = discord_account(db, did, username)
+            if not u["active"]:
+                return fail("locked")
             save(db)
-        print(f"Gebiet {old} -> Discord-Account {new} übertragen", file=sys.stderr)
-        self.send_json(200, {"moved": True})
+            token = session_token(db, uid)
+        self.redirect("/", clear, self.cookie_header(token))
+
+    def login(self):
+        """Nur für das Admin-Konto, Spieler melden sich über Discord an."""
+        body = self.json_body()
+        name, pw = body.get("name"), body.get("password")
+        wrong = ApiError("wrong_login", "Name oder Passwort falsch.", 401)
+        if not isinstance(name, str) or not isinstance(pw, str) or len(name) > 32 or len(pw) > 128:
+            raise wrong
+        name = name.strip()
+        key = (self.client_address[0], name.lower())
+        if too_many_fails(key):
+            raise ApiError("rate_limited", "Zu viele Fehlversuche. Versuch es in ein paar Minuten noch einmal.", 429)
+        with lock:
+            db = load()
+        uid, u = find_user(db, name)
+        # Hash außerhalb des Locks: dauert absichtlich lang und soll niemanden sonst aufhalten
+        is_admin = bool(u and u["role"] == "admin")
+        if not check_pw(pw, u["pw"] if is_admin else DUMMY_HASH) or not is_admin:
+            note_fail(key)
+            raise wrong
+        with fails_lock:
+            fails.pop(key, None)
+        self.send_json(200, {"ok": True}, cookie=session_token(db, uid))
+
+    def logout(self):
+        self.send_json(200, {"ok": True}, cookie="")
+
+    def change_password(self):
+        body = self.json_body()
+        new = clean_password(body.get("new"))
+        old = body.get("old")
+        with lock:
+            db = load()
+        uid, admin = self.who(db)
+        if not admin:
+            raise ApiError("forbidden", "Nur das Admin-Konto hat ein Passwort.", 403)
+        if not isinstance(old, str) or not check_pw(old, db["users"][uid]["pw"]):
+            raise ApiError("wrong_login", "Das aktuelle Passwort stimmt nicht.", 403)
+        pw_hash = hash_pw(new)
+        with lock:
+            db = load()
+            u = db["users"][uid]
+            u.update(pw=pw_hash, gen=u["gen"] + 1, mustChange=False)   # meldet andere Geräte ab
+            save(db)
+            token = session_token(db, uid)
+        self.send_json(200, {"ok": True}, cookie=token)
+
+    # --- Konten (nur Admin)
+    def update_user(self, uid):
+        body = self.json_body()
+        with lock:
+            db = load()
+            self.require_admin(db)
+            u = db["users"].get(uid)
+            if not u:
+                raise ApiError("not_found", "Konto existiert nicht.", 404)
+            if u["role"] == "admin":
+                raise ApiError("invalid", "Das Admin-Konto lässt sich hier nicht ändern.")
+            if "active" in body:
+                u["active"] = bool(body["active"])
+                u["gen"] += 1
+            save(db)
+        self.send_json(200, {"ok": True})
+
+    def move_claim(self, cid):
+        """Gibt ein Gebiet einem anderen Konto (auch für Gebiete aus der Zeit vor den Konten)."""
+        target = self.json_body().get("uid")
+        with lock:
+            db = load()
+            self.require_admin(db)
+            if cid not in db["claims"]:
+                raise ApiError("not_found", "Gebiet existiert nicht.", 404)
+            if target not in db["users"]:
+                raise ApiError("not_found", "Konto existiert nicht.", 404)
+            other, team = team_of(db, target)
+            if other and other != cid:
+                raise ApiError("invalid", f"Dieses Konto ist schon im Team „{team['team']}“.")
+            c = db["claims"].pop(cid)
+            ids = [target] + [i for i in member_ids(cid, c) if i not in (cid, target)]
+            set_members(db, c, ids)
+            c["players"] = len(ids)
+            db["claims"][target] = c
+            save(db)
+        self.send_json(200, {"ok": True})
+
+    def leave_team(self, cid):
+        """Wer von einem anderen eingetragen wurde, kommt so wieder raus und kann selbst claimen."""
+        with lock:
+            db = load()
+            uid, _ = self.who(db)
+            c = db["claims"].get(cid)
+            if not uid or not c or uid not in member_ids(cid, c):
+                raise ApiError("forbidden", "Du bist nicht in diesem Team.", 403)
+            if uid == cid:
+                raise ApiError("invalid", "Du hast dieses Gebiet erstellt. Du kannst es freigeben, aber nicht verlassen.")
+            if not claims_open(db["settings"]):
+                raise ApiError("closed", "Das Claimen ist geschlossen. Frag einen Admin.", 403)
+            ids = [i for i in member_ids(cid, c) if i != uid]
+            set_members(db, c, ids)
+            c["players"] = len(ids)
+            save(db)
+        self.send_json(200, {"ok": True})
 
     def write(self, merge):
         path = self.path.split("?", 1)[0]
-        body = json.loads(self.body() or b"{}")
-        if not isinstance(body, dict):
-            raise ApiError("invalid", "Ungültige Daten.")
+        body = self.json_body()
         with lock:
             db = load()
             uid, admin = self.who(db)
@@ -644,7 +879,7 @@ class Handler(SimpleHTTPRequestHandler):
                 db["settings"] = write_settings({**db["settings"], **body} if merge else body)
             elif m := re.fullmatch(r"/api/doc/claims/([0-9a-f]{16})", path):
                 if not uid and not admin:
-                    raise ApiError("forbidden", "Kein Account.", 403)
+                    raise ApiError("forbidden", "Bitte melde dich an.", 403)
                 write_claim(db, uid, m.group(1), body, merge, admin)
             else:
                 raise ApiError("not_found", "Nicht gefunden", 404)
@@ -661,7 +896,7 @@ class Handler(SimpleHTTPRequestHandler):
             uid, admin = self.who(db)
             cid = m.group(1)
             if not admin and uid != cid:
-                raise ApiError("forbidden", "Nur der Ersteller oder ein Admin kann das Gebiet freigeben.", 403)
+                raise ApiError("forbidden", "Nur wer das Gebiet erstellt hat oder ein Admin kann es freigeben.", 403)
             if not admin and not claims_open(db["settings"]):
                 raise ApiError("closed", "Das Claimen ist geschlossen.", 403)
             db["claims"].pop(cid, None)
@@ -672,9 +907,7 @@ class Handler(SimpleHTTPRequestHandler):
     def upload_map(self):
         with lock:
             db = load()
-        _, admin = self.who(db)
-        if not admin:
-            raise ApiError("forbidden", "Nur Admins.", 403)
+        self.require_admin(db)
         data = self.body(limit=15_000_000)
         ext = ("png" if data[:8] == b"\x89PNG\r\n\x1a\n" else "jpg" if data[:3] == b"\xff\xd8\xff"
                else "webp" if data[:4] == b"RIFF" and data[8:12] == b"WEBP" else None)
@@ -688,19 +921,12 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
-    with lock:
-        load()                                   # legt data.json an / migriert claims.json
-    if not admin_token():
-        with open(TOKEN_FILE, "w") as f:
-            f.write(secrets.token_urlsafe(12) + "\n")
-        os.chmod(TOKEN_FILE, 0o600)
-    print(f"Admin-Login: http://<server>:{port}/?admin={admin_token()}")
-    if DISCORD:
-        print(f"Discord-Login aktiv, Redirect-URL: {CONFIG['public_url'] or 'http://<host>:' + str(port)}/auth/discord/callback")
-        if not CONFIG["admins"]:
-            print("Hinweis: keine Discord-Admins in config.json – Admin nur über ?admin=…")
-    else:
-        print("Login: pro Browser (für Discord-Login config.json anlegen, siehe config.example.json)")
-    print(f"Gebiete-Karte läuft auf http://0.0.0.0:{port}")
-    ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
+    args = [a for a in sys.argv[1:] if a != "--reset-admin"]
+    if "--reset-admin" in sys.argv:
+        ensure_admin(reset=True)
+        sys.exit(0)
+    port = int(args[0]) if args else 8080
+    ensure_admin()                               # legt data.json an / migriert claims.json
+    host = os.environ.get("HOST", "0.0.0.0")      # hinter einem Proxy: HOST=127.0.0.1
+    print(f"Gebiete-Karte läuft auf http://{host}:{port}")
+    ThreadingHTTPServer((host, port), Handler).serve_forever()

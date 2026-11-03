@@ -28,10 +28,27 @@ old/                   Stand vor dem Zusammenführen (alte Plot-Seite, Original-
 
 ## Accounts
 
-Kein Passwort für Spieler: Jeder Browser bekommt automatisch ein geheimes Account-Token.
-Die Account-ID ist ein HMAC davon, also kann niemand ein fremdes Gebiet ändern.
-Wer das Gerät wechselt, findet unter „Mein Gebiet“ einen Login-Link für das andere Gerät.
-Browser-Daten löschen = Zugriff weg; dann kann ein Admin das Gebiet bearbeiten oder löschen.
+**Standard (ohne `config.json`):** Kein Passwort für Spieler. Jeder Browser bekommt automatisch
+ein geheimes Account-Token, die Account-ID ist ein HMAC davon. Wer das Gerät wechselt, findet
+unter „Mein Gebiet“ einen Login-Link. Browser-Daten löschen = Zugriff weg.
+
+**Mit Discord-Login:**
+
+1. Auf https://discord.com/developers/applications eine App anlegen (*New Application*).
+2. Unter *OAuth2* die **Client ID** und das **Client Secret** kopieren und bei *Redirects*
+   `<öffentliche Adresse>/auth/discord/callback` eintragen, z. B.
+   `https://mc.elektronic.online/auth/discord/callback`.
+3. `config.example.json` nach `config.json` kopieren und ausfüllen (`public_url` ist dieselbe
+   Adresse ohne `/auth/...`). Unter `admins` die Discord-User-IDs der Admins eintragen.
+4. Server neu starten. Die Konsole zeigt die Redirect-URL, die in Discord stehen muss.
+
+Danach kann nur noch claimen, wer mit Discord angemeldet ist. Der Server fragt nur den Scope
+`identify` ab (ID + Name, keine E-Mail). Die Sitzung ist ein signiertes Cookie (30 Tage).
+Wer schon vorher im Browser-Modus ein Gebiet hatte, behält es: Beim ersten Discord-Login im
+selben Browser wird es automatisch übertragen. Der Discord-Name wird in der Gebietsansicht als
+„Geclaimt von“ angezeigt. Das Admin-Passwort (`?admin=…`) funktioniert weiterhin.
+
+`config.json` enthält das Client Secret und ist deshalb nicht im Repo.
 
 ## Was der Server prüft
 

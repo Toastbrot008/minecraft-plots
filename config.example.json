@@ -1,0 +1,9 @@
+{
+  "_hilfe": "Kopieren nach config.json. Discord-App anlegen: https://discord.com/developers/applications -> New Application -> OAuth2. Dort Client ID + Client Secret hierher kopieren und als Redirect <public_url>/auth/discord/callback eintragen. admins = Discord-User-IDs (Discord: Einstellungen > Erweitert > Entwicklermodus, dann Rechtsklick auf Name > ID kopieren).",
+  "public_url": "http://localhost:8080",
+  "discord": {
+    "client_id": "",
+    "client_secret": ""
+  },
+  "admins": []
+}

@@ -8,10 +8,14 @@ Admin:  Passwort steht in admin_token.txt (oder ADMIN_TOKEN=geheim python3 serve
 
 Daten liegen in data.json, hochgeladene Karten in uploads/.
 
-Accounts: Jeder Browser erzeugt ein zufälliges Geheimnis und schickt es als
-X-Account. Die Account-ID ist ein HMAC davon – der Server muss keine Accounts
-speichern, und niemand kann eine fremde ID annehmen, ohne deren Geheimnis zu kennen.
+Accounts, zwei Modi:
+- Ohne config.json (Standard): Jeder Browser erzeugt ein zufälliges Geheimnis und schickt
+  es als X-Account. Die Account-ID ist ein HMAC davon.
+- Mit Discord (config.json, siehe config.example.json): Login über Discord, Sitzung als
+  signiertes Cookie. Account-ID = HMAC der Discord-ID. Alte Browser-Gebiete werden beim
+  ersten Discord-Login übernommen (/api/link). Admins: Discord-IDs in "admins".
 """
+import base64
 import datetime
 import hashlib
 import hmac
@@ -23,6 +27,10 @@ import secrets
 import sys
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from http.cookies import SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -31,6 +39,28 @@ DATA = os.path.join(ROOT, "data.json")
 UPLOADS = os.path.join(ROOT, "uploads")
 OLD_CLAIMS = os.path.join(ROOT, "claims.json")      # Format der alten Rechteck-Plots
 TOKEN_FILE = os.path.join(ROOT, "admin_token.txt")
+CONFIG_FILE = os.path.join(ROOT, "config.json")
+SESSION_DAYS = 30
+DISCORD_AUTHORIZE = os.environ.get("DISCORD_AUTHORIZE", "https://discord.com/oauth2/authorize")
+DISCORD_API = os.environ.get("DISCORD_API", "https://discord.com/api/v10")
+
+
+def load_config():
+    try:
+        with open(CONFIG_FILE, encoding="utf-8") as f:
+            cfg = json.load(f)
+    except FileNotFoundError:
+        cfg = {}
+    d = cfg.get("discord") or {}
+    cfg["discord"] = {"client_id": os.environ.get("DISCORD_CLIENT_ID", d.get("client_id", "")),
+                      "client_secret": os.environ.get("DISCORD_CLIENT_SECRET", d.get("client_secret", ""))}
+    cfg["public_url"] = os.environ.get("PUBLIC_URL", cfg.get("public_url", "")).rstrip("/")
+    cfg["admins"] = {str(a) for a in cfg.get("admins", [])}
+    return cfg
+
+
+CONFIG = load_config()
+DISCORD = bool(CONFIG["discord"]["client_id"] and CONFIG["discord"]["client_secret"])
 
 
 def admin_token():
@@ -116,6 +146,52 @@ def migrate():
 
 def account_id(db, secret):
     return hmac.new(db["key"].encode(), secret.encode(), hashlib.sha256).hexdigest()[:16]
+
+
+# ------------------------------------------------------------------ Discord-Login + Sitzungen
+def b64(b):
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+def unb64(s):
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+
+def sign(db, payload):
+    return b64(hmac.new(db["key"].encode(), b"session:" + payload.encode(), hashlib.sha256).digest())
+
+
+def make_session(db, uid, did):
+    payload = b64(json.dumps({"u": uid, "d": did, "e": int(time.time()) + SESSION_DAYS * 86400}).encode())
+    return payload + "." + sign(db, payload)
+
+
+def read_session(db, value):
+    try:
+        payload, sig = value.split(".", 1)
+        if not hmac.compare_digest(sig, sign(db, payload)):
+            return None
+        s = json.loads(unb64(payload))
+        return s if s["e"] > time.time() else None
+    except (ValueError, KeyError, TypeError, json.JSONDecodeError):
+        return None
+
+
+def discord_request(url, data=None, token=None):
+    headers = {"User-Agent": "EL-SMP-Gebiete (https://github.com/Toastbrot008/minecraft-plots, 1.0)",
+               "Accept": "application/json"}
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    body = None
+    if data is not None:
+        body = urllib.parse.urlencode(data).encode()
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, body, headers), timeout=15) as r:
+            return json.load(r)
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
+        print("Discord-Anfrage fehlgeschlagen:", url, e, file=sys.stderr)
+        return None
 
 
 # ------------------------------------------------------------------ Geometrie (wie in index.html)
@@ -359,13 +435,92 @@ class Handler(SimpleHTTPRequestHandler):
             raise ApiError("too_large", "Anfrage zu groß.", 413)
         return self.rfile.read(n)
 
+    def cookie(self, name):
+        c = SimpleCookie()
+        try:
+            c.load(self.headers.get("Cookie", ""))
+        except Exception:
+            return None
+        return c[name].value if name in c else None
+
+    def session(self, db):
+        v = self.cookie("elsmp_session")
+        return read_session(db, v) if v else None
+
     def who(self, db):
-        secret = self.headers.get("X-Account", "")
-        uid = account_id(db, secret) if len(secret) >= 16 else None
         expected = admin_token()
         given = self.headers.get("X-Admin", "")
         admin = bool(expected and given and hmac.compare_digest(given, expected))
+        if DISCORD:
+            s = self.session(db)
+            uid = s["u"] if s else None
+            admin = admin or bool(s and s["d"] in CONFIG["admins"])
+        else:
+            secret = self.headers.get("X-Account", "")
+            uid = account_id(db, secret) if len(secret) >= 16 else None
         return uid, admin
+
+    def base_url(self):
+        return CONFIG["public_url"] or "http://" + self.headers.get("Host", "localhost")
+
+    def set_cookie_header(self, name, value, max_age, path="/"):
+        secure = "; Secure" if self.base_url().startswith("https://") else ""
+        self.send_header("Set-Cookie", f"{name}={value}; Path={path}; Max-Age={max_age}; HttpOnly; SameSite=Lax{secure}")
+
+    def redirect(self, to, cookies=()):
+        self.send_response(302)
+        self.send_header("Location", to)
+        for c in cookies:
+            self.set_cookie_header(*c)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def auth_page(self, msg):
+        body = (f'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
+                f'<title>Login</title><body style="font-family:sans-serif;padding:24px">'
+                f'<p>{msg}</p><p><a href="/">Zurück zur Karte</a></p>').encode()
+        self.send_response(400)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def auth_start(self):
+        if not DISCORD:
+            return self.auth_page("Discord-Login ist auf diesem Server nicht eingerichtet.")
+        state = secrets.token_urlsafe(16)
+        q = urllib.parse.urlencode({"client_id": CONFIG["discord"]["client_id"], "response_type": "code",
+                                    "redirect_uri": self.base_url() + "/auth/discord/callback",
+                                    "scope": "identify", "state": state, "prompt": "none"})
+        self.redirect(DISCORD_AUTHORIZE + "?" + q, [("elsmp_oauth", state, 600, "/auth")])
+
+    def auth_callback(self):
+        if not DISCORD:
+            return self.auth_page("Discord-Login ist auf diesem Server nicht eingerichtet.")
+        q = urllib.parse.parse_qs(self.path.partition("?")[2])
+        code, state = q.get("code", [""])[0], q.get("state", [""])[0]
+        expected = self.cookie("elsmp_oauth") or ""
+        if not code or not expected or not hmac.compare_digest(state, expected):
+            return self.auth_page("Login abgebrochen oder abgelaufen. Bitte noch einmal versuchen.")
+        tok = discord_request(DISCORD_API + "/oauth2/token", {
+            "client_id": CONFIG["discord"]["client_id"], "client_secret": CONFIG["discord"]["client_secret"],
+            "grant_type": "authorization_code", "code": code,
+            "redirect_uri": self.base_url() + "/auth/discord/callback"})
+        user = tok and tok.get("access_token") and discord_request(DISCORD_API + "/users/@me", token=tok["access_token"])
+        if not user or "id" not in user:
+            return self.auth_page("Discord hat den Login nicht bestätigt. Bitte noch einmal versuchen.")
+        did = str(user["id"])
+        name = str(user.get("global_name") or user.get("username") or "?")[:40]
+        with lock:
+            db = load()
+            uid = account_id(db, "discord:" + did)
+            db.setdefault("users", {})[uid] = {"name": name, "discord": did, "login": int(time.time())}
+            save(db)
+            cookie = make_session(db, uid, did)
+        self.redirect("/", [("elsmp_session", cookie, SESSION_DAYS * 86400), ("elsmp_oauth", "", 0, "/auth")])
+
+    def auth_logout(self):
+        self.redirect("/", [("elsmp_session", "", 0)])
 
     def api(self, fn):
         try:
@@ -382,6 +537,12 @@ class Handler(SimpleHTTPRequestHandler):
             return self.api(self.get_state)
         if path == "/api/me":
             return self.api(self.get_me)
+        if path == "/auth/discord":
+            return self.auth_start()
+        if path == "/auth/discord/callback":
+            return self.auth_callback()
+        if path == "/auth/logout":
+            return self.auth_logout()
         if path.startswith("/_blob/"):
             return self.get_blob(path[7:])
         return super().do_GET()
@@ -392,13 +553,18 @@ class Handler(SimpleHTTPRequestHandler):
             db = load()
         if q.get("v") == str(db["version"]):
             return self.send_json(200, {"version": db["version"], "unchanged": True})
-        self.send_json(200, {"version": db["version"], "settings": db["settings"], "claims": db["claims"]})
+        users = db.get("users", {})
+        names = {k: users[k]["name"] for k in db["claims"] if k in users}
+        self.send_json(200, {"version": db["version"], "settings": db["settings"], "claims": db["claims"],
+                             "names": names})
 
     def get_me(self):
         with lock:
             db = load()
         uid, admin = self.who(db)
-        self.send_json(200, {"id": uid, "isAdmin": admin, "adminConfigured": bool(admin_token())})
+        self.send_json(200, {"id": uid, "isAdmin": admin, "adminConfigured": bool(admin_token()),
+                             "auth": "discord" if DISCORD else "browser",
+                             "name": db.get("users", {}).get(uid, {}).get("name") if uid else None})
 
     def get_blob(self, name):
         if not re.fullmatch(r"[0-9a-f]{16}\.(png|jpg|webp)", name):
@@ -415,19 +581,54 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     # --- Schreiben
+    def csrf_ok(self):
+        # Eigener Header erzwingt bei fremden Seiten einen CORS-Preflight, den wir nie erlauben
+        if self.headers.get("X-ELSMP") == "1":
+            return True
+        self.send_json(403, {"code": "forbidden", "error": "Anfrage abgelehnt."})
+        return False
+
     def do_PUT(self):
-        self.api(lambda: self.write(merge=False))
+        if self.csrf_ok():
+            self.api(lambda: self.write(merge=False))
 
     def do_PATCH(self):
-        self.api(lambda: self.write(merge=True))
+        if self.csrf_ok():
+            self.api(lambda: self.write(merge=True))
 
     def do_DELETE(self):
-        self.api(self.delete)
+        if self.csrf_ok():
+            self.api(self.delete)
 
     def do_POST(self):
+        if not self.csrf_ok():
+            return
         if self.path == "/api/map":
             return self.api(self.upload_map)
+        if self.path == "/api/link":
+            return self.api(self.link_legacy)
         self.send_json(404, {"code": "not_found", "error": "Nicht gefunden"})
+
+    def link_legacy(self):
+        """Gebiet eines alten Browser-Accounts auf den Discord-Account übertragen."""
+        secret = self.headers.get("X-Account", "")
+        with lock:
+            db = load()
+            s = self.session(db) if DISCORD else None
+            if not s:
+                raise ApiError("forbidden", "Nicht angemeldet.", 403)
+            if len(secret) < 16:
+                return self.send_json(200, {"moved": False, "reason": "none"})
+            old, new = account_id(db, secret), s["u"]
+            claims = db["claims"]
+            if old not in claims:
+                return self.send_json(200, {"moved": False, "reason": "none"})
+            if new in claims:
+                return self.send_json(200, {"moved": False, "reason": "both"})
+            claims[new] = claims.pop(old)
+            save(db)
+        print(f"Gebiet {old} -> Discord-Account {new} übertragen", file=sys.stderr)
+        self.send_json(200, {"moved": True})
 
     def write(self, merge):
         path = self.path.split("?", 1)[0]
@@ -495,5 +696,11 @@ if __name__ == "__main__":
             f.write(secrets.token_urlsafe(12) + "\n")
         os.chmod(TOKEN_FILE, 0o600)
     print(f"Admin-Login: http://<server>:{port}/?admin={admin_token()}")
+    if DISCORD:
+        print(f"Discord-Login aktiv, Redirect-URL: {CONFIG['public_url'] or 'http://<host>:' + str(port)}/auth/discord/callback")
+        if not CONFIG["admins"]:
+            print("Hinweis: keine Discord-Admins in config.json – Admin nur über ?admin=…")
+    else:
+        print("Login: pro Browser (für Discord-Login config.json anlegen, siehe config.example.json)")
     print(f"Gebiete-Karte läuft auf http://0.0.0.0:{port}")
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()

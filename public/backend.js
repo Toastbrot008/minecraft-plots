@@ -5,7 +5,8 @@
    - user:      id(), canEdit() (= Admin), can(), profiles()
    - assets:    upload(file) – nur für Admins
    - downloads: save({filename, data})
-   Account: zufälliges Geheimnis pro Browser (localStorage), Admin über ?admin=TOKEN. */
+   Account: Discord-Login (Cookie), wenn server.py so eingerichtet ist – sonst ein
+   zufälliges Geheimnis pro Browser (localStorage). Admin zusätzlich über ?admin=TOKEN. */
 (() => {
   const LS = {
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -24,7 +25,8 @@
   }
   if (loginMatch || url.href !== location.href) history.replaceState(null, "", url.pathname + url.search + url.hash);
 
-  // --- Account-Geheimnis: vorhandenes nehmen, sonst Token vom alten Plot-System, sonst neu
+  // --- Browser-Geheimnis: vorhandenes nehmen, sonst Token vom alten Plot-System.
+  //     Ein neues wird nur erzeugt, wenn der Server ohne Discord-Login läuft.
   let secret = LS.get("elsmpAccount");
   if (!secret) {
     try {
@@ -32,14 +34,15 @@
       secret = Object.values(old)[0] || null;      // alter Plot-Token -> gleiches Gebiet
     } catch {}
   }
-  if (!secret) {
+  function newSecret() {
     const b = new Uint8Array(18); crypto.getRandomValues(b);
     secret = btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+    LS.set("elsmpAccount", secret);
   }
-  LS.set("elsmpAccount", secret);
 
   const headers = extra => {
-    const h = { "X-Account": secret, ...extra };
+    const h = { "X-ELSMP": "1", ...extra };
+    if (secret) h["X-Account"] = secret;
     const a = LS.get("elsmpAdmin"); if (a) h["X-Admin"] = a;
     return h;
   };
@@ -60,7 +63,7 @@
   }
 
   // --- Zustand + Polling
-  let state = null, version = null, polling = null;
+  let state = null, version = null, polling = null, names = {};
   const subs = new Set();
   const snapDoc = (coll, id) => {
     const data = coll === "settings" ? (id === "main" ? state.settings : undefined) : state.claims[id];
@@ -70,7 +73,7 @@
   async function poll() {
     try {
       const j = await call("GET", "/api/state" + (version !== null ? "?v=" + version : ""));
-      if (!j.unchanged) { state = j; version = j.version; emit(); }
+      if (!j.unchanged) { state = j; version = j.version; names = j.names || {}; emit(); }
     } catch (e) { for (const f of subs) f.err && f.err(e); }
   }
   function startPolling() {
@@ -107,15 +110,35 @@
   }
 
   let me = null;
-  const getMe = () => me || (me = call("GET", "/api/me"));
+  async function loadMe() {
+    let m = await call("GET", "/api/me");
+    if (m.auth === "browser" && !secret) { newSecret(); m = await call("GET", "/api/me"); }
+    if (m.auth === "discord" && m.id && secret) {
+      // Altes Browser-Gebiet auf den Discord-Account übertragen (einmalig)
+      try {
+        const r = await call("POST", "/api/link");
+        if (r.reason !== "both") { LS.del("elsmpAccount"); LS.del("plotTokens"); secret = null; }
+      } catch {}
+    }
+    return m;
+  }
+  const getMe = () => me || (me = loadMe());
 
   const user = {
     id: async () => (await getMe()).id,
     canEdit: async () => (await getMe()).isAdmin,
     can: async () => true,
-    profiles: async () => ({}),                    // keine Anzeigenamen; Mitglieder stehen im Gebiet
-    loginLink: () => location.origin + location.pathname + "#login=" + secret,
+    profiles: async ids => Object.fromEntries(ids.filter(id => names[id]).map(id => [id, { name: names[id] }])),
   };
+  // Je nach Login-Modus: Discord-Anmeldung oder Login-Link fürs andere Gerät
+  getMe().then(m => {
+    if (m.auth === "discord") {
+      user.loginUrl = "/auth/discord";
+      if (m.id) { user.name = m.name || "Discord"; user.logoutUrl = "/auth/logout"; }
+    } else {
+      user.loginLink = () => location.origin + location.pathname + "#login=" + secret;
+    }
+  }).catch(() => {});
   const assets = {
     async upload(file) { return call("POST", "/api/map", file, { "Content-Type": file.type || "application/octet-stream" }); },
   };

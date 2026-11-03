@@ -15,3 +15,6 @@ tools/world/pregen.out
 tools/world/run/
 __pycache__/
 *.pyc
+
+# Discord-Zugangsdaten
+config.json

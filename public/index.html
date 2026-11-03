@@ -964,7 +964,9 @@ function renderMine(){
   const el = $("#pane-mine"), mine = myClaim(), st = S.settings;
   if (!S.db){ el.innerHTML = `<h2>Mein Gebiet</h2><div class="note warn">Der Server ist gerade nicht erreichbar. Lade die Seite gleich neu.</div>`; return; }
   if (!S.loaded){ el.innerHTML = `<h2>Mein Gebiet</h2><p class="muted">Wird geladen…</p>`; return; }
+  if (S.readOnly && S.user && S.user.loginUrl && !S.uid){ el.innerHTML = `<h2>Mein Gebiet</h2><p class="lead">Melde dich mit Discord an, um für dein Team ein Gebiet zu claimen. Wir sehen nur deinen Discord-Namen.</p><div class="btns"><a class="btn primary wide" href="${esc(S.user.loginUrl)}">Mit Discord anmelden</a></div>`; return; }
   if (S.readOnly){ el.innerHTML = `<h2>Mein Gebiet</h2><div class="note warn">Du kannst die Karte ansehen, aber nichts claimen. Frag einen Admin nach Bearbeitungsrechten für diese Seite.</div>`; return; }
+  const account = S.user && S.user.name ? `<p class="muted" style="font-size:.85rem;margin:16px 0 0">Angemeldet als <b>${esc(S.user.name)}</b> · <a href="${esc(S.user.logoutUrl)}">Abmelden</a></p>` : "";
   const open = claimsOpen();
 
   if (mine && !S.draft){
@@ -979,6 +981,7 @@ function renderMine(){
       </div>
     </div>`;
     if (!open) html += `<div class="note info">Das Claimen ist geschlossen. Änderungen gehen nur noch über einen Admin.</div>`;
+    html += account;
     if (S.user && S.user.loginLink) html += `<div class="note info">Euer Gebiet hängt an diesem Browser. Auf einem anderen Gerät weitermachen? Diesen Link dort öffnen (nicht weitergeben):<input class="search" id="mLink" readonly value="${esc(S.user.loginLink())}" style="margin:8px 0 0"></div>`;
     el.innerHTML = html;
     const ml = $("#mLink"); if (ml) ml.onfocus = () => ml.select();
@@ -1011,7 +1014,7 @@ function renderMine(){
   <div id="fErr"></div>
   <div class="btns">
     ${d.editing ? `<button class="btn" id="fCancel">Abbrechen</button><button class="btn primary" id="fSave">Änderungen speichern</button>` : `<button class="btn primary wide" id="fPlace">Grenzen auf der Karte ziehen</button>`}
-  </div>`;
+  </div>${account}`;
   el.innerHTML = html;
 
   const sync = () => { d.team = $("#fTeam").value; d.members = $("#fMembers").value; d.note = $("#fNote").value; };

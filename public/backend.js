@@ -2,56 +2,16 @@
    erwartet – aber gegen das eigene Backend (server.py).
    - db:        doc(path).set/update/delete/onSnapshot, collection("claims").onSnapshot
                 Live-Updates per Polling von /api/state alle 3 s
-   - user:      id(), canEdit() (= Admin), can(), profiles()
+   - user:      id(), canEdit() (= Admin), can(), profiles(), Anmeldung und Kontenverwaltung
    - assets:    upload(file) – nur für Admins
    - downloads: save({filename, data})
-   Account: Discord-Login (Cookie), wenn server.py so eingerichtet ist – sonst ein
-   zufälliges Geheimnis pro Browser (localStorage). Admin zusätzlich über ?admin=TOKEN. */
+   Anmeldung: HttpOnly-Cookie vom Server, die Seite sieht das Token nie. */
 (() => {
-  const LS = {
-    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
-    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
-    del(k) { try { localStorage.removeItem(k); } catch {} },
-  };
-
-  // --- Login-Link (#login=…) und Admin-Token (?admin=…) aus der URL übernehmen
-  const url = new URL(location.href);
-  const loginMatch = location.hash.match(/login=([A-Za-z0-9_-]{16,})/);
-  if (loginMatch) { LS.set("elsmpAccount", loginMatch[1]); url.hash = ""; }
-  if (url.searchParams.has("admin")) {
-    const t = url.searchParams.get("admin");
-    if (t) LS.set("elsmpAdmin", t); else LS.del("elsmpAdmin");
-    url.searchParams.delete("admin");
-  }
-  if (loginMatch || url.href !== location.href) history.replaceState(null, "", url.pathname + url.search + url.hash);
-
-  // --- Browser-Geheimnis: vorhandenes nehmen, sonst Token vom alten Plot-System.
-  //     Ein neues wird nur erzeugt, wenn der Server ohne Discord-Login läuft.
-  let secret = LS.get("elsmpAccount");
-  if (!secret) {
-    try {
-      const old = JSON.parse(LS.get("plotTokens") || "{}");
-      secret = Object.values(old)[0] || null;      // alter Plot-Token -> gleiches Gebiet
-    } catch {}
-  }
-  function newSecret() {
-    const b = new Uint8Array(18); crypto.getRandomValues(b);
-    secret = btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-    LS.set("elsmpAccount", secret);
-  }
-
-  const headers = extra => {
-    const h = { "X-ELSMP": "1", ...extra };
-    if (secret) h["X-Account"] = secret;
-    const a = LS.get("elsmpAdmin"); if (a) h["X-Admin"] = a;
-    return h;
-  };
-
   async function call(method, path, body, extraHeaders) {
     let r;
     try {
       r = await fetch(path, {
-        method, headers: headers(body instanceof Blob ? extraHeaders : { "Content-Type": "application/json", ...extraHeaders }),
+        method, headers: body instanceof Blob ? extraHeaders : { "Content-Type": "application/json", ...extraHeaders },
         body: body === undefined ? undefined : body instanceof Blob ? body : JSON.stringify(body),
       });
     } catch (e) {
@@ -63,7 +23,7 @@
   }
 
   // --- Zustand + Polling
-  let state = null, version = null, polling = null, names = {};
+  let state = null, version = null, polling = null;
   const subs = new Set();
   const snapDoc = (coll, id) => {
     const data = coll === "settings" ? (id === "main" ? state.settings : undefined) : state.claims[id];
@@ -73,8 +33,11 @@
   async function poll() {
     try {
       const j = await call("GET", "/api/state" + (version !== null ? "?v=" + version : ""));
-      if (!j.unchanged) { state = j; version = j.version; names = j.names || {}; emit(); }
-    } catch (e) { for (const f of subs) f.err && f.err(e); }
+      if (!j.unchanged) { state = j; version = j.version; emit(); }
+    } catch (e) {
+      if (e.code === "login") return location.reload();   // Anmeldung abgelaufen oder Konto gesperrt
+      for (const f of subs) f.err && f.err(e);
+    }
   }
   function startPolling() {
     if (polling) return;
@@ -110,35 +73,28 @@
   }
 
   let me = null;
-  async function loadMe() {
-    let m = await call("GET", "/api/me");
-    if (m.auth === "browser" && !secret) { newSecret(); m = await call("GET", "/api/me"); }
-    if (m.auth === "discord" && m.id && secret) {
-      // Altes Browser-Gebiet auf den Discord-Account übertragen (einmalig)
-      try {
-        const r = await call("POST", "/api/link");
-        if (r.reason !== "both") { LS.del("elsmpAccount"); LS.del("plotTokens"); secret = null; }
-      } catch {}
-    }
-    return m;
-  }
-  const getMe = () => me || (me = loadMe());
+  const getMe = () => me || (me = call("GET", "/api/me"));
 
   const user = {
     id: async () => (await getMe()).id,
     canEdit: async () => (await getMe()).isAdmin,
     can: async () => true,
-    profiles: async ids => Object.fromEntries(ids.filter(id => names[id]).map(id => [id, { name: names[id] }])),
+    profiles: async () => {                        // Kontonamen sieht nur der Admin
+      if (!(await getMe()).isAdmin) return {};
+      const out = {};
+      for (const u of await user.accounts()) out[u.id] = { name: u.name };
+      return out;
+    },
+    me: getMe,
+    login: data => call("POST", "/api/login", data),
+    logout: () => call("POST", "/api/logout"),
+    changePassword: (old, neu) => call("POST", "/api/password", { old, new: neu }),
+    accounts: async () => (await call("GET", "/api/users")).users,
+    names: async () => (await call("GET", "/api/names")).names,
+    updateAccount: (id, patch) => call("PATCH", "/api/users/" + id, patch),
+    leaveTeam: async cid => { await call("POST", "/api/claims/" + cid + "/leave"); await refresh(); },
+    moveClaim: async (cid, uid) => { await call("POST", "/api/claims/" + cid + "/owner", { uid }); await refresh(); },
   };
-  // Je nach Login-Modus: Discord-Anmeldung oder Login-Link fürs andere Gerät
-  getMe().then(m => {
-    if (m.auth === "discord") {
-      user.loginUrl = "/auth/discord";
-      if (m.id) { user.name = m.name || "Discord"; user.logoutUrl = "/auth/logout"; }
-    } else {
-      user.loginLink = () => location.origin + location.pathname + "#login=" + secret;
-    }
-  }).catch(() => {});
   const assets = {
     async upload(file) { return call("POST", "/api/map", file, { "Content-Type": file.type || "application/octet-stream" }); },
   };

@@ -19,3 +19,7 @@ __pycache__/
 # Discord-Zugangsdaten
 config.json
 backups/
+
+# Vorschaubilder: Chunky-Szenen/Octrees (groß, lokal)
+tools/previews/scenes/
+tools/chunky/

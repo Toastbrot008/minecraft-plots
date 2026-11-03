@@ -18,3 +18,4 @@ __pycache__/
 
 # Discord-Zugangsdaten
 config.json
+backups/

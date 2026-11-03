@@ -1,0 +1,17 @@
+# Geheimnisse + Live-Daten (data.json enthält den HMAC-Schlüssel)
+admin_token.txt
+data.json
+claims.json
+uploads/
+old/
+
+# Wird von den Skripten heruntergeladen/erzeugt
+tools/cubiomes/
+tools/gen
+tools/world/*.jar
+tools/world/version.json
+tools/world/palette.json
+tools/world/pregen.out
+tools/world/run/
+__pycache__/
+*.pyc

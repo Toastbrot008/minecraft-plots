@@ -1,0 +1,1231 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EL-SMP Gebiete</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,500..800&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E7ECEE; --panel:#FFFFFF; --panel2:#F3F6F7; --line:#D2DADE; --ink:#1B2430; --muted:#5A6774;
+  --gold:#F4C04E; --gold-ink:#8A5A00; --ok:#2E8B57; --bad:#C2412D; --mapbg:#C9D3D8;
+  --shadow:0 1px 0 rgba(27,36,48,.06), 0 8px 24px -12px rgba(27,36,48,.25);
+  --display:"Bricolage Grotesque", "Avenir Next Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body:"Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, sans-serif;
+  color-scheme: light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#18212C; --panel:#202B38; --panel2:#263343; --line:#334356; --ink:#EDF1E9; --muted:#9AA8B5;
+    --gold:#F4C04E; --gold-ink:#F4C04E; --ok:#5CC48A; --bad:#F07A63; --mapbg:#121A23;
+    --shadow:0 1px 0 rgba(0,0,0,.2), 0 10px 30px -14px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#18212C; --panel:#202B38; --panel2:#263343; --line:#334356; --ink:#EDF1E9; --muted:#9AA8B5;
+  --gold:#F4C04E; --gold-ink:#F4C04E; --ok:#5CC48A; --bad:#F07A63; --mapbg:#121A23;
+  --shadow:0 1px 0 rgba(0,0,0,.2), 0 10px 30px -14px rgba(0,0,0,.6);
+  color-scheme: dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:16px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+.shell{display:grid;grid-template-rows:auto 1fr;height:100%;min-height:0}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:20px;padding:14px 22px;border-bottom:1px solid var(--line);background:var(--panel)}
+.mark{width:38px;height:38px;flex:none;border-radius:9px;background:var(--gold);display:grid;place-items:center;box-shadow:inset 0 -3px 0 rgba(0,0,0,.18)}
+.mark svg{width:22px;height:22px}
+.titles{min-width:0}
+.titles h1{margin:0;font:800 1.45rem/1.05 var(--display);font-stretch:85%;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.titles p{margin:2px 0 0;color:var(--muted);font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.countdown{margin-left:auto;display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+.countdown b{font:800 2rem/1 var(--display);font-stretch:80%;font-variant-numeric:tabular-nums}
+.countdown span{color:var(--muted);font-size:.9rem}
+.status{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;font-weight:700;font-size:.85rem;background:var(--panel2);border:1px solid var(--line);white-space:nowrap}
+.status i{width:9px;height:9px;border-radius:50%;background:var(--ok)}
+.status.closed i{background:var(--bad)}
+
+/* main */
+.app{display:grid;grid-template-columns:minmax(0,1fr) 390px;min-height:0}
+.mapwrap{position:relative;background:var(--mapbg);overflow:hidden;min-height:0;touch-action:none}
+#map{display:block;width:100%;height:100%;cursor:grab;user-select:none;-webkit-user-select:none}
+#map.dragging{cursor:grabbing}
+#map.placing{cursor:crosshair}
+.mapimg,#ttiles image{image-rendering:pixelated}
+#terrain[hidden],#ttiles[hidden]{display:none}
+.coords .blk{opacity:.85;margin-left:10px}
+.plot-fill{fill-opacity:.24;stroke:none;transition:fill-opacity .15s}
+.plot.sel .plot-fill{fill-opacity:.42}
+.plot.pending .plot-fill{fill-opacity:.12}
+.plot-halo{fill:none;stroke:#fff;stroke-opacity:.6;stroke-width:5;stroke-linejoin:round}
+.plot-line{fill:none;stroke-width:2.4;stroke-dasharray:10 5;stroke-linejoin:round;stroke-linecap:round}
+.plot.pending .plot-line{stroke-dasharray:2 6}
+.plot.mine .plot-halo{stroke:var(--gold);stroke-width:7;stroke-opacity:1}
+.plot.overlap .plot-halo{stroke:var(--bad);stroke-width:7;stroke-opacity:1}
+.labels text{font-family:var(--display);font-weight:700;font-stretch:90%;fill:#fff;stroke:rgba(16,22,30,.82);paint-order:stroke;stroke-linejoin:round;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.labels .atlas{text-transform:uppercase;letter-spacing:.16em}
+.labels .sub{font-family:var(--body);font-weight:700;font-stretch:100%;letter-spacing:0;text-transform:none}
+.spawn{fill:#fff;fill-opacity:.14;stroke:#fff;stroke-width:2;stroke-dasharray:3 6;stroke-linecap:round}
+.draft-fill{fill-opacity:.3}
+.draft-line{fill:none;stroke-width:3;stroke-linejoin:round;stroke-linecap:round}
+.draft-open{stroke-dasharray:6 5}
+.draft-v{fill:#fff;stroke-width:2.5}
+.draft-v.first{stroke-width:4}
+.mapctl{position:absolute;right:14px;top:14px;display:flex;flex-direction:column;gap:6px}
+.mapctl button{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--panel);box-shadow:var(--shadow);font-size:1.2rem;font-weight:700;cursor:pointer;display:grid;place-items:center}
+.mapctl button:hover{background:var(--panel2)}
+.coords{position:absolute;left:14px;top:14px;padding:6px 10px;border-radius:8px;background:rgba(16,22,30,.72);color:#fff;font-size:.85rem;font-variant-numeric:tabular-nums;pointer-events:none}
+.coords:empty{display:none}
+
+.banner{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:min(560px,calc(100% - 90px));background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--gold);border-radius:12px;box-shadow:var(--shadow);padding:12px 14px;display:none;gap:10px;align-items:center;flex-wrap:wrap}
+.banner.on{display:flex}
+.banner p{margin:0;flex:1 1 220px;font-size:.95rem}
+.banner p small{display:block;color:var(--muted)}
+.banner .bad{color:var(--bad);font-weight:700}
+.budget{flex:1 1 100%;display:flex;align-items:center;gap:10px;font-size:.85rem;font-variant-numeric:tabular-nums}
+.budget .bar{flex:1;height:8px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);overflow:hidden}
+.budget .bar i{display:block;height:100%;width:0;background:var(--ok);transition:width .1s}
+.budget.over .bar i{background:var(--bad)}
+.budget.over b{color:var(--bad)}
+.banner .acts{display:flex;gap:6px;flex-wrap:wrap}
+
+/* panel */
+.panel{display:flex;flex-direction:column;min-height:0;background:var(--panel);border-left:1px solid var(--line)}
+.tabs{display:flex;gap:4px;padding:10px 12px 0;border-bottom:1px solid var(--line)}
+.tab{border:0;background:none;padding:10px 12px 12px;font-weight:700;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--gold)}
+.tab[hidden]{display:none}
+.pane{flex:1;overflow:auto;padding:18px 18px 28px;min-height:0}
+.pane[hidden]{display:none}
+h2{font:800 1.25rem/1.15 var(--display);font-stretch:85%;margin:0 0 4px}
+h3{font:700 1.02rem/1.2 var(--display);margin:22px 0 8px}
+.lead{color:var(--muted);margin:0 0 16px;font-size:.95rem}
+.muted{color:var(--muted)}
+
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 16px}
+.stat{background:var(--panel2);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font:800 1.5rem/1 var(--display);font-stretch:85%;font-variant-numeric:tabular-nums}
+.stat span{font-size:.8rem;color:var(--muted)}
+
+.search{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);margin-bottom:10px}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.item{display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;cursor:pointer;border:1px solid transparent;background:none;width:100%;text-align:left}
+.item:hover{background:var(--panel2)}
+.item.sel{background:var(--panel2);border-color:var(--line)}
+.sw{width:16px;height:16px;border-radius:50%;flex:none;box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--line)}
+.item .nm{font-weight:700;display:block;line-height:1.25}
+.item .meta{font-size:.82rem;color:var(--muted)}
+.item .grow{flex:1;min-width:0}
+.tag{font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);white-space:nowrap}
+.tag.pending{color:var(--gold-ink);border-color:var(--gold)}
+.tag.mine{background:var(--gold);color:#1B2430;border-color:var(--gold)}
+.tag.warn{color:var(--bad);border-color:var(--bad)}
+
+.detail{border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px;position:relative;overflow:hidden}
+.detail::before{content:"";position:absolute;inset:0 0 auto 0;height:6px;background:var(--c,var(--gold))}
+.detail h2{margin-top:4px}
+.detail dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:12px 0 0;font-size:.92rem}
+.detail dt{color:var(--muted)}
+.detail dd{margin:0;font-variant-numeric:tabular-nums}
+.detail .close{position:absolute;right:10px;top:12px;border:0;background:none;font-size:1.3rem;cursor:pointer;color:var(--muted);width:32px;height:32px;border-radius:8px}
+.detail .close:hover{background:var(--panel2)}
+
+.empty{border:2px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--muted)}
+
+/* forms */
+label.f{display:block;margin:0 0 14px}
+label.f>span{display:block;font-weight:700;font-size:.9rem;margin-bottom:5px}
+label.f>small{display:block;color:var(--muted);font-size:.8rem;margin-top:4px}
+input[type=text],input[type=number],input[type=datetime-local],textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+textarea{resize:vertical;min-height:70px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.stepper{display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;background:var(--panel2);width:max-content}
+.stepper button{width:44px;height:44px;border:0;background:none;font-size:1.3rem;font-weight:700;cursor:pointer}
+.stepper button:disabled{opacity:.35;cursor:default}
+.stepper output{min-width:52px;text-align:center;font:800 1.3rem/1 var(--display);font-variant-numeric:tabular-nums}
+.colors{display:flex;flex-wrap:wrap;gap:8px}
+.colors button{width:32px;height:32px;border-radius:50%;border:0;cursor:pointer;box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--line)}
+.colors button[aria-pressed="true"]{box-shadow:0 0 0 3px var(--panel),0 0 0 6px var(--ink)}
+.sizebox{display:flex;gap:14px;align-items:center;background:var(--panel2);border-radius:12px;padding:12px 14px;margin:4px 0 16px}
+.sizebox svg{flex:none}
+.sizebox b{font:800 1.15rem/1.1 var(--display);font-stretch:85%;display:block}
+.sizebox span{font-size:.85rem;color:var(--muted)}
+.switch{display:flex;align-items:center;gap:12px;margin:0 0 14px;cursor:pointer}
+.switch input{width:44px;height:26px;appearance:none;-webkit-appearance:none;border-radius:999px;background:var(--line);position:relative;cursor:pointer;flex:none;transition:background .15s}
+.switch input::after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .15s}
+.switch input:checked{background:var(--ok)}
+.switch input:checked::after{transform:translateX(18px)}
+.switch span b{display:block}
+.switch span small{color:var(--muted)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-weight:700;cursor:pointer;text-decoration:none}
+.btn:hover{background:var(--panel2)}
+.btn.primary{background:var(--gold);border-color:var(--gold);color:#1B2430;box-shadow:inset 0 -3px 0 rgba(0,0,0,.15)}
+.btn.primary:hover{filter:brightness(1.05)}
+.btn.danger{color:var(--bad)}
+.btn.armed{background:var(--bad);border-color:var(--bad);color:#fff}
+.btn.small{padding:6px 10px;font-size:.85rem;border-radius:8px}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.wide{width:100%}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.note{background:var(--panel2);border-radius:12px;padding:12px 14px;font-size:.92rem;margin:0 0 16px}
+.note.warn{border-left:4px solid var(--bad)}
+.note.info{border-left:4px solid var(--gold)}
+
+.adm-sec{border-top:1px solid var(--line);padding-top:4px;margin-top:18px}
+.adm-sec:first-of-type{border-top:0;margin-top:0}
+.admrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.admrow:last-child{border-bottom:0}
+.admrow .grow{flex:1;min-width:0}
+.admrow .nm{font-weight:700}
+.admrow .meta{font-size:.8rem;color:var(--muted)}
+.admedit{background:var(--panel2);border-radius:12px;padding:12px;margin:6px 0 10px}
+.mapthumb{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;border:1px solid var(--line);image-rendering:pixelated;background:var(--mapbg);margin-bottom:10px}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:10px;font-weight:700;pointer-events:none;transition:opacity .2s,transform .2s;z-index:20;max-width:90vw}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width: 860px){
+  .shell{height:auto;min-height:100%}
+  .top{flex-wrap:wrap;gap:8px 12px;padding:12px 14px}
+  .titles{flex:1 1 0}
+  .titles h1{font-size:1.25rem}
+  .titles p{white-space:normal}
+  .countdown{margin-left:0}
+  .countdown b{font-size:1.5rem}
+  .app{grid-template-columns:1fr;grid-template-rows:min(68vh, calc(100vw + 24px)) auto}
+  .mapctl{right:10px;top:10px}
+  .panel{border-left:0;border-top:1px solid var(--line)}
+  .pane{overflow:visible}
+  .banner{width:calc(100% - 20px);bottom:10px;padding:10px 12px}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <div class="mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#1B2430" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.6"/></svg>
+    </div>
+    <div class="titles">
+      <h1 id="title">EL-SMP Season 5</h1>
+      <p id="subtitle">Zieht die Grenzen eures Gebiets, bevor der Server startet.</p>
+    </div>
+    <div class="countdown" id="countdown"></div>
+    <div class="status" id="status"><i></i><span>Claimen offen</span></div>
+  </header>
+
+  <main class="app">
+    <section class="mapwrap" id="mapwrap" aria-label="Karte">
+      <svg id="map" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Weltkarte mit geclaimten Gebieten">
+        <defs><clipPath id="worldclip"><rect id="worldrect"/></clipPath></defs>
+        <g id="terrain" clip-path="url(#worldclip)"><image id="tover" preserveAspectRatio="none"/><g id="ttiles"></g></g>
+        <image id="mapimg" class="mapimg" preserveAspectRatio="none"/>
+        <circle id="spawn" class="spawn"/>
+        <g id="plots"></g>
+        <g id="preview"></g>
+        <g id="labels" class="labels"></g>
+      </svg>
+      <div class="mapctl">
+        <button id="zin" aria-label="Hineinzoomen">+</button>
+        <button id="zout" aria-label="Herauszoomen">−</button>
+        <button id="zfit" aria-label="Ganze Karte zeigen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      </div>
+      <div class="coords" id="coords"></div>
+      <div class="banner" id="banner" role="status" aria-live="polite"></div>
+    </section>
+
+    <aside class="panel">
+      <nav class="tabs" role="tablist">
+        <button class="tab" role="tab" data-tab="teams" aria-selected="true">Alle Gebiete</button>
+        <button class="tab" role="tab" data-tab="mine" aria-selected="false">Mein Gebiet</button>
+        <button class="tab" role="tab" data-tab="admin" aria-selected="false" hidden>Admin</button>
+      </nav>
+      <div class="pane" id="pane-teams"></div>
+      <div class="pane" id="pane-mine" hidden></div>
+      <div class="pane" id="pane-admin" hidden></div>
+    </aside>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="backend.js"></script>
+<script>
+const DEFAULT_MAP = "map.png";   // Fallback (Biom-Karte), falls tools/world noch nicht gelaufen ist
+const DEFAULTS = {
+  title: "EL-SMP Season 5",
+  subtitle: "Zieht die Grenzen eures Gebiets, bevor der Server startet.",
+  start: "2026-12-27T00:00",
+  open: true,
+  deadline: "",
+  requireApproval: false,
+  minPlayers: 1,
+  maxPlayers: 8,
+  baseBorder: 200,
+  perPlayerBorder: 80,
+  minGap: 10,
+  spawnX: 0, spawnZ: 0, spawnR: 150,
+  minX: -1500, maxX: 1500, minZ: -1500, maxZ: 1500,
+  mapAssetId: ""
+};
+const COLORS = ["#E8553E","#F29C38","#F5D547","#8BC34A","#2FA36B","#36B6C9","#4D7CE0","#8E5CD6","#D965B0","#F4A6C4","#A0663E","#F2F2F2"];
+const MAX_POINTS = 60;
+
+const S = {
+  db: null, user: null, assets: null, downloads: null,
+  uid: null, isAdmin: false, canWrite: null, readOnly: false,
+  settings: { ...DEFAULTS }, claims: [], names: {},
+  loaded: false, slow: false,
+  tab: "teams", selected: null, search: "",
+  draft: null, placing: null,
+  adminEdit: null, adminDraft: null, imgRatio: null
+};
+
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+const fmt = n => Math.round(n).toLocaleString("de-DE");
+const mapSrc = () => S.settings.mapAssetId ? "/_blob/" + S.settings.mapAssetId : DEFAULT_MAP;
+const budgetFor = (players, st = S.settings) => Number(st.baseBorder) + Number(st.perPlayerBorder) * players;
+const myClaim = () => S.uid ? S.claims.find(c => c.id === S.uid) : null;
+const claimsOpen = () => {
+  if (!S.settings.open) return false;
+  if (S.settings.deadline && new Date(S.settings.deadline) < new Date()) return false;
+  return true;
+};
+function toast(msg){ const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("on"), 2800); }
+function armConfirm(btn, label, action){
+  const orig = btn.textContent; let t = 0;
+  const reset = () => { delete btn.dataset.armed; btn.textContent = orig; btn.classList.remove("armed"); };
+  btn.onclick = async () => {
+    if (!btn.dataset.armed){ btn.dataset.armed = "1"; btn.textContent = label; btn.classList.add("armed"); t = setTimeout(reset, 4000); return; }
+    clearTimeout(t); btn.disabled = true;
+    await action();
+    if (btn.isConnected){ btn.disabled = false; reset(); }
+  };
+}
+function errMsg(e){
+  if (e && e.serverMsg) return e.serverMsg;
+  const c = e && e.code;
+  if (c === "invalid_argument") return "Speichern nicht möglich: Du hast für diese Seite nur Leserechte.";
+  if (c === "quota_exceeded") return "Speicher voll. Ein Admin muss alte Einträge löschen.";
+  if (c === "revoked" || c === "not_granted") return "Der Zugriff auf die gespeicherten Daten wurde beendet.";
+  return "Speichern fehlgeschlagen. Versuch es gleich noch einmal.";
+}
+
+/* ---------- geometry (points are [x, z]) ---------- */
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+function perim(pts, closed = true){
+  let s = 0;
+  for (let i = 1; i < pts.length; i++) s += dist(pts[i - 1], pts[i]);
+  if (closed && pts.length > 2) s += dist(pts[pts.length - 1], pts[0]);
+  return s;
+}
+function area(pts){
+  let a = 0;
+  for (let i = 0; i < pts.length; i++){ const p = pts[i], q = pts[(i + 1) % pts.length]; a += p[0] * q[1] - q[0] * p[1]; }
+  return Math.abs(a / 2);
+}
+function centroid(pts){
+  let a = 0, cx = 0, cz = 0;
+  for (let i = 0; i < pts.length; i++){
+    const p = pts[i], q = pts[(i + 1) % pts.length], f = p[0] * q[1] - q[0] * p[1];
+    a += f; cx += (p[0] + q[0]) * f; cz += (p[1] + q[1]) * f;
+  }
+  if (Math.abs(a) < 1e-6){ const n = pts.length || 1; return [pts.reduce((s, p) => s + p[0], 0) / n, pts.reduce((s, p) => s + p[1], 0) / n]; }
+  return [cx / (3 * a), cz / (3 * a)];
+}
+function bbox(pts){
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (const p of pts){ x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
+  return { x0, z0, x1, z1 };
+}
+function inPoly(p, pts){
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++){
+    const a = pts[i], b = pts[j];
+    if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+  }
+  return inside;
+}
+function orient(a, b, c){ const v = (b[1] - a[1]) * (c[0] - b[0]) - (b[0] - a[0]) * (c[1] - b[1]); return Math.abs(v) < 1e-9 ? 0 : v > 0 ? 1 : 2; }
+function onSeg(a, b, c){ return Math.min(a[0], c[0]) <= b[0] && b[0] <= Math.max(a[0], c[0]) && Math.min(a[1], c[1]) <= b[1] && b[1] <= Math.max(a[1], c[1]); }
+function segInter(a, b, c, d){
+  const o1 = orient(a, b, c), o2 = orient(a, b, d), o3 = orient(c, d, a), o4 = orient(c, d, b);
+  if (o1 !== o2 && o3 !== o4) return true;
+  if (o1 === 0 && onSeg(a, c, b)) return true;
+  if (o2 === 0 && onSeg(a, d, b)) return true;
+  if (o3 === 0 && onSeg(c, a, d)) return true;
+  if (o4 === 0 && onSeg(c, b, d)) return true;
+  return false;
+}
+function ptSeg(p, a, b){
+  const dx = b[0] - a[0], dz = b[1] - a[1], l = dx * dx + dz * dz;
+  let t = l ? ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / l : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dz);
+}
+function polyDist(P, Q){
+  if (inPoly(P[0], Q) || inPoly(Q[0], P)) return 0;
+  let m = Infinity;
+  for (let i = 0; i < P.length; i++){
+    const a = P[i], b = P[(i + 1) % P.length];
+    for (let j = 0; j < Q.length; j++){
+      const c = Q[j], d = Q[(j + 1) % Q.length];
+      if (segInter(a, b, c, d)) return 0;
+      m = Math.min(m, ptSeg(a, c, d), ptSeg(b, c, d), ptSeg(c, a, b), ptSeg(d, a, b));
+    }
+  }
+  return m;
+}
+function selfIntersects(pts){
+  const n = pts.length;
+  for (let i = 0; i < n; i++){
+    for (let j = i + 1; j < n; j++){
+      if (j === i + 1 || (i === 0 && j === n - 1)) continue;
+      if (segInter(pts[i], pts[(i + 1) % n], pts[j], pts[(j + 1) % n])) return true;
+    }
+  }
+  return false;
+}
+function spawnDist(pts){
+  const s = [Number(S.settings.spawnX), Number(S.settings.spawnZ)];
+  if (inPoly(s, pts)) return 0;
+  let m = Infinity;
+  for (let i = 0; i < pts.length; i++) m = Math.min(m, ptSeg(s, pts[i], pts[(i + 1) % pts.length]));
+  return m;
+}
+function circlePts(x, z, r){
+  const out = [];
+  for (let i = 0; i < 16; i++){ const a = i / 16 * Math.PI * 2; out.push([Math.round(x + Math.cos(a) * r), Math.round(z + Math.sin(a) * r)]); }
+  return out;
+}
+
+/* ---------- validity ---------- */
+function checkPoly(pts, excludeId){
+  const st = S.settings;
+  if (pts.length < 3) return "Eine Grenze braucht mindestens 3 Punkte.";
+  for (const p of pts) if (p[0] < st.minX || p[0] > st.maxX || p[1] < st.minZ || p[1] > st.maxZ) return "Die Grenze ragt über den Kartenrand.";
+  if (selfIntersects(pts)) return "Die Grenze kreuzt sich selbst. Verschieb einen Punkt oder nimm einen zurück.";
+  if (area(pts) < 100) return "Das Gebiet ist zu klein.";
+  if (spawnDist(pts) < Number(st.spawnR)) return "Zu nah am Spawn. Der Bereich rund um den Spawn bleibt frei.";
+  const bb = bbox(pts), gap = Number(st.minGap);
+  for (const c of S.claims){
+    if (c.id === excludeId) continue;
+    const ob = c.bb;
+    if (ob.x0 - gap > bb.x1 || ob.x1 + gap < bb.x0 || ob.z0 - gap > bb.z1 || ob.z1 + gap < bb.z0) continue;
+    if (polyDist(pts, c.pts) < gap) return "Überschneidet sich mit „" + c.team + "“ oder liegt näher als " + gap + " Blöcke dran.";
+  }
+  return null;
+}
+function overlaps(){
+  const bad = new Set();
+  for (let i = 0; i < S.claims.length; i++){
+    const a = S.claims[i];
+    for (let j = i + 1; j < S.claims.length; j++){
+      const b = S.claims[j];
+      if (a.bb.x0 > b.bb.x1 || a.bb.x1 < b.bb.x0 || a.bb.z0 > b.bb.z1 || a.bb.z1 < b.bb.z0) continue;
+      if (polyDist(a.pts, b.pts) === 0){ bad.add(a.id); bad.add(b.id); }
+    }
+    if (spawnDist(a.pts) < Number(S.settings.spawnR)) bad.add(a.id);
+  }
+  return bad;
+}
+
+/* ---------- map view ---------- */
+const svg = $("#map"), wrap = $("#mapwrap");
+let vb = { x: -1500, y: -1500, w: 3000, h: 3000 };
+const pxSize = () => vb.w / Math.max(1, wrap.clientWidth);
+function worldBox(){ const s = S.settings; return { x: +s.minX, y: +s.minZ, w: s.maxX - s.minX, h: s.maxZ - s.minZ }; }
+function aspect(){ const r = wrap.getBoundingClientRect(); return r.width ? r.height / r.width : 1; }
+function fit(){
+  const wb = worldBox(), a = aspect();
+  let w, h;
+  if (wb.h / wb.w > a){ h = wb.h * 1.04; w = h / a; } else { w = wb.w * 1.04; h = w * a; }
+  vb = { x: wb.x + wb.w / 2 - w / 2, y: wb.y + wb.h / 2 - h / 2, w, h };
+  applyVB();
+}
+function clampVB(){
+  const wb = worldBox(), a = aspect();
+  const maxW = Math.max(wb.w, wb.h / a) * 1.6, minW = 40;
+  const cx = vb.x + vb.w / 2, cy = vb.y + vb.h / 2;
+  vb.w = Math.min(maxW, Math.max(minW, vb.w)); vb.h = vb.w * a;
+  const ncx = Math.min(wb.x + wb.w, Math.max(wb.x, cx)), ncy = Math.min(wb.y + wb.h, Math.max(wb.y, cy));
+  vb.x = ncx - vb.w / 2; vb.y = ncy - vb.h / 2;
+}
+function applyVB(){
+  clampVB();
+  svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+  if (!applyVB.q) applyVB.q = requestAnimationFrame(() => { applyVB.q = 0; drawPlots(); updateTiles(); });
+}
+function toWorld(cx, cy){
+  const r = wrap.getBoundingClientRect();
+  return [vb.x + (cx - r.left) / r.width * vb.w, vb.y + (cy - r.top) / r.height * vb.h];
+}
+function zoomAt(world, fx, fy, newW){
+  vb.w = newW; vb.h = newW * aspect();
+  vb.x = world[0] - fx * vb.w; vb.y = world[1] - fy * vb.h;
+  applyVB();
+}
+function zoomBy(f){ zoomAt([vb.x + vb.w / 2, vb.y + vb.h / 2], .5, .5, vb.w * f); }
+let anim = null;
+function flyTo(x, z, w){
+  const from = { ...vb }, a = aspect();
+  const to = { w, h: w * a }; to.x = x - to.w / 2; to.y = z - to.h / 2;
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches){ vb = { ...to }; applyVB(); return; }
+  const t0 = performance.now(), dur = 450;
+  cancelAnimationFrame(anim);
+  const step = t => {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    vb = { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, w: from.w + (to.w - from.w) * e, h: from.h + (to.h - from.h) * e };
+    applyVB();
+    if (k < 1) anim = requestAnimationFrame(step);
+  };
+  anim = requestAnimationFrame(step);
+}
+function flyToClaim(c){ const b = c.bb; flyTo((b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2, Math.max((b.x1 - b.x0) * 2.6, (b.z1 - b.z0) * 2.6 / aspect(), 240)); }
+
+const ptrs = new Map(); let drag = null, pinch = null, moved = false;
+function nearVertex(cx, cy, touch){
+  const P = S.placing; if (!P || !P.pts.length) return -1;
+  const w = toWorld(cx, cy), tol = (touch ? 22 : 12) * pxSize();
+  let best = -1, bd = tol;
+  P.pts.forEach((p, i) => { const d = dist(p, w); if (d <= bd){ bd = d; best = i; } });
+  return best;
+}
+svg.addEventListener("pointerdown", e => {
+  svg.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  cancelAnimationFrame(anim);
+  if (ptrs.size === 1){
+    const P = S.placing;
+    if (P){
+      const vi = nearVertex(e.clientX, e.clientY, e.pointerType !== "mouse");
+      if (vi >= 0 && (P.closed || vi !== 0 || P.pts.length < 3)){ P.dragIdx = vi; P.dragMoved = false; drag = null; return; }
+    }
+    drag = { sx: e.clientX, sy: e.clientY, vb: { ...vb } }; moved = false;
+  } else if (ptrs.size === 2){
+    if (S.placing) S.placing.dragIdx = -1;
+    const [a, b] = [...ptrs.values()];
+    const r = wrap.getBoundingClientRect();
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), w: vb.w, world: toWorld(mx, my), fx: (mx - r.left) / r.width, fy: (my - r.top) / r.height };
+    drag = null; moved = true;
+  }
+});
+svg.addEventListener("pointermove", e => {
+  const w = toWorld(e.clientX, e.clientY);
+  showCoords(w);
+  if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const P = S.placing;
+  if (P && P.dragIdx >= 0){
+    P.pts[P.dragIdx] = [Math.round(w[0]), Math.round(w[1])];
+    P.dragMoved = true;
+    revalidate(); drawPreview(); updateBudget();
+    return;
+  }
+  if (pinch && ptrs.size === 2){
+    const [a, b] = [...ptrs.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+    zoomAt(pinch.world, pinch.fx, pinch.fy, pinch.w * pinch.d / d);
+    return;
+  }
+  if (drag){
+    const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+    if (!moved && Math.hypot(dx, dy) > 5){ moved = true; svg.classList.add("dragging"); }
+    if (moved){
+      const r = wrap.getBoundingClientRect();
+      vb.x = drag.vb.x - dx / r.width * vb.w; vb.y = drag.vb.y - dy / r.height * vb.h;
+      applyVB();
+    }
+    return;
+  }
+  if (P && !P.closed && e.pointerType === "mouse"){ P.hover = [Math.round(w[0]), Math.round(w[1])]; drawPreview(); updateBudget(); }
+});
+function endPtr(e){
+  const P = S.placing;
+  if (P && P.dragIdx >= 0){
+    const wasTap = !P.dragMoved, idx = P.dragIdx;
+    P.dragIdx = -1; ptrs.delete(e.pointerId);
+    if (wasTap && !P.closed && idx === 0 && P.pts.length >= 3) closeDraft();
+    else renderBanner();
+    return;
+  }
+  const wasTap = drag && !moved;
+  ptrs.delete(e.pointerId);
+  if (ptrs.size < 2) pinch = null;
+  if (ptrs.size === 0){ svg.classList.remove("dragging"); if (wasTap && e.type === "pointerup") mapClick(e); drag = null; }
+}
+svg.addEventListener("pointerup", endPtr);
+svg.addEventListener("pointercancel", endPtr);
+svg.addEventListener("pointerleave", e => {
+  if (e.pointerType !== "mouse") return;
+  $("#coords").textContent = ""; T.hover = null;
+  if (S.placing && S.placing.hover){ S.placing.hover = null; drawPreview(); updateBudget(); }
+});
+wrap.addEventListener("wheel", e => {
+  e.preventDefault();
+  const r = wrap.getBoundingClientRect();
+  zoomAt(toWorld(e.clientX, e.clientY), (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, vb.w * Math.exp(e.deltaY * 0.0015));
+}, { passive: false });
+$("#zin").onclick = () => zoomBy(1 / 1.5);
+$("#zout").onclick = () => zoomBy(1.5);
+$("#zfit").onclick = fit;
+new ResizeObserver(() => { const c = [vb.x + vb.w / 2, vb.y + vb.h / 2]; vb.h = vb.w * aspect(); vb.x = c[0] - vb.w / 2; vb.y = c[1] - vb.h / 2; applyVB(); }).observe(wrap);
+
+function mapClick(e){
+  const w = toWorld(e.clientX, e.clientY);
+  if (S.placing){ addPoint([Math.round(w[0]), Math.round(w[1])]); return; }
+  let hit = null, best = Infinity;
+  for (const c of S.claims){ if (inPoly(w, c.pts) && c.area < best){ hit = c; best = c.area; } }
+  select(hit ? hit.id : null, false);
+}
+function select(id, fly){
+  S.selected = id;
+  if (id){
+    const c = S.claims.find(x => x.id === id);
+    if (c && fly) flyToClaim(c);
+    if (S.tab !== "teams") setTab("teams");
+  }
+  drawPlots(); renderTeams();
+}
+
+/* ---------- Gelände (public/terrain, erzeugt mit tools/world) ---------- */
+const T = { idx: null, has: new Set(), tiles: new Map(), data: new Map(), hover: null };
+const useTerrain = () => !!T.idx && !S.settings.mapAssetId;
+fetch("terrain/index.json").then(r => r.ok ? r.json() : null).then(j => {
+  if (!j) return;
+  T.idx = j; T.has = new Set(j.tiles.map(([x, z]) => x + "," + z));
+  const o = j.overview, im = $("#tover");
+  im.setAttribute("href", "terrain/overview.webp");
+  im.setAttribute("x", o.x); im.setAttribute("y", o.z); im.setAttribute("width", o.size[0]); im.setAttribute("height", o.size[1]);
+  drawMapBase(); updateTiles();
+}).catch(() => {});
+function updateTiles(){
+  const g = $("#ttiles");
+  if (!useTerrain()) return;
+  const near = 1 / pxSize() >= 0.6;            // ab ~0.6 Bildschirmpixel pro Block volle Auflösung
+  g.hidden = !near;
+  if (!near) return;
+  const s = T.idx.tileSize;
+  for (let rz = Math.floor(vb.y / s); rz <= Math.floor((vb.y + vb.h) / s); rz++)
+    for (let rx = Math.floor(vb.x / s); rx <= Math.floor((vb.x + vb.w) / s); rx++){
+      const k = rx + "," + rz;
+      if (!T.has.has(k) || T.tiles.has(k)) continue;
+      const im = document.createElementNS("http://www.w3.org/2000/svg", "image");
+      im.setAttribute("href", `terrain/r.${rx}.${rz}.webp`);
+      im.setAttribute("x", rx * s); im.setAttribute("y", rz * s);
+      im.setAttribute("width", s + 0.02); im.setAttribute("height", s + 0.02);   // +0.02 gegen Haarlinien
+      im.setAttribute("preserveAspectRatio", "none");
+      g.appendChild(im); T.tiles.set(k, im);
+    }
+}
+// Blockdaten einer Kachel für die Anzeige unter dem Mauszeiger
+function tileData(rx, rz){
+  const k = rx + "," + rz;
+  if (!T.has.has(k)) return undefined;
+  if (!T.data.has(k)){
+    T.data.set(k, null);
+    fetch(`terrain/r.${rx}.${rz}.bin`)
+      .then(r => new Response(r.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer())
+      .then(buf => {
+        const N = 512 * 512;
+        T.data.set(k, { base: new Uint16Array(buf, 0, N), top: new Uint16Array(buf, 2 * N, N), height: new Int16Array(buf, 4 * N, N),
+          surf: new Int16Array(buf, 6 * N, N), depth: new Uint8Array(buf, 8 * N, N), biome: new Uint8Array(buf, 9 * N, N) });
+        if (T.hover) showCoords(T.hover);
+      }).catch(() => T.data.delete(k));
+  }
+  return T.data.get(k);
+}
+function showCoords(w){
+  T.hover = w;
+  const x = Math.floor(w[0]), z = Math.floor(w[1]), el = $("#coords");
+  let html = `X ${Math.round(w[0])}&nbsp;&nbsp; Z ${Math.round(w[1])}`;
+  if (useTerrain()){
+    const rx = Math.floor(x / 512), rz = Math.floor(z / 512), d = tileData(rx, rz);
+    if (d === null) html += `<span class="blk">…</span>`;
+    else if (d){
+      const i = (z - rz * 512) * 512 + (x - rx * 512), B = T.idx.blocks;
+      if (d.base[i] !== 0xFFFF){
+        const blk = d.depth[i] ? `Wasser (${d.depth[i]} tief) über ${B[d.base[i]]}`
+          : d.top[i] !== 0xFFFF ? `${B[d.top[i]]} auf ${B[d.base[i]]}` : B[d.base[i]];
+        html += `<span class="blk">${esc(blk)} · Y ${d.depth[i] ? d.surf[i] : d.height[i]} · ${esc(T.idx.biomes[d.biome[i]])}</span>`;
+      }
+    }
+  }
+  el.innerHTML = html;
+}
+
+/* ---------- drawing ---------- */
+const ptsAttr = pts => pts.map(p => p[0] + "," + p[1]).join(" ");
+function drawMapBase(){
+  const s = S.settings, img = $("#mapimg");
+  const wr = $("#worldrect");
+  wr.setAttribute("x", s.minX); wr.setAttribute("y", s.minZ); wr.setAttribute("width", s.maxX - s.minX); wr.setAttribute("height", s.maxZ - s.minZ);
+  $("#terrain").hidden = !useTerrain(); img.style.display = useTerrain() ? "none" : "";
+  img.setAttribute("href", mapSrc());
+  img.setAttribute("x", s.minX); img.setAttribute("y", s.minZ);
+  img.setAttribute("width", s.maxX - s.minX); img.setAttribute("height", s.maxZ - s.minZ);
+  const sp = $("#spawn");
+  sp.setAttribute("cx", s.spawnX); sp.setAttribute("cy", s.spawnZ); sp.setAttribute("r", Math.max(0, s.spawnR));
+  sp.style.vectorEffect = "non-scaling-stroke";
+}
+function drawPlots(){
+  const g = $("#plots"), lg = $("#labels"), bad = S.isAdmin ? overlaps() : new Set();
+  const editingId = S.placing && S.placing.targetId, px = pxSize();
+  let html = "", lab = "";
+  const ordered = [...S.claims].sort((a, b) => b.area - a.area);
+  for (const c of ordered){
+    if (c.id === editingId) continue;
+    const cls = ["plot"];
+    if (c.status === "pending") cls.push("pending");
+    if (c.id === S.uid) cls.push("mine");
+    if (c.id === S.selected) cls.push("sel");
+    if (bad.has(c.id)) cls.push("overlap");
+    const pa = ptsAttr(c.pts), col = esc(c.color);
+    const wpx = (c.bb.x1 - c.bb.x0) / px, hpx = (c.bb.z1 - c.bb.z0) / px;
+    const name = c.team, fsPx = Math.min(24, (wpx * 0.78) / (name.length * 0.82 + 0.6), hpx * 0.42);
+    const small = fsPx < 10;
+    html += `<g class="${cls.join(" ")}"><polygon points="${pa}" class="plot-halo" vector-effect="non-scaling-stroke"/><polygon points="${pa}" class="plot-fill" fill="${col}"/><polygon points="${pa}" class="plot-line" stroke="${col}" vector-effect="non-scaling-stroke"/>${small ? `<circle cx="${c.cx}" cy="${c.cz}" r="${5 * px}" fill="${col}" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ""}</g>`;
+    if (!small){
+      const fs = fsPx * px, showSub = fsPx >= 12 && hpx > fsPx * 3.2;
+      lab += `<text class="atlas" x="${c.cx}" y="${c.cz - (showSub ? fs * .35 : 0)}" font-size="${fs}" stroke-width="${3 * px}">${esc(name)}</text>`;
+      if (showSub) lab += `<text class="sub" x="${c.cx}" y="${c.cz + fs * .85}" font-size="${12 * px}" stroke-width="${3 * px}">${c.players} Spieler</text>`;
+    } else {
+      lab += `<text class="atlas" x="${c.cx}" y="${c.cz - Math.max(hpx / 2 * px, 5 * px) - 11 * px}" font-size="${12 * px}" stroke-width="${3 * px}">${esc(name)}</text>`;
+    }
+  }
+  g.innerHTML = html; lg.innerHTML = lab;
+  drawPreview();
+}
+function drawPreview(){
+  const P = S.placing, g = $("#preview");
+  if (!P){ g.innerHTML = ""; return; }
+  const px = pxSize(), col = P.color, pts = P.pts;
+  const bad = P.closed ? (P.error || P.over) : false;
+  const lineCol = bad ? "var(--bad)" : col;
+  let html = "";
+  if (P.closed){
+    html += `<polygon points="${ptsAttr(pts)}" class="draft-fill" fill="${bad ? "var(--bad)" : col}"/><polygon points="${ptsAttr(pts)}" class="draft-line" stroke="#fff" stroke-width="6" stroke-opacity=".6" vector-effect="non-scaling-stroke"/><polygon points="${ptsAttr(pts)}" class="draft-line" stroke="${lineCol}" vector-effect="non-scaling-stroke"/>`;
+  } else if (pts.length){
+    if (pts.length > 1) html += `<polyline points="${ptsAttr(pts)}" class="draft-line" stroke="#fff" stroke-width="6" stroke-opacity=".6" vector-effect="non-scaling-stroke"/><polyline points="${ptsAttr(pts)}" class="draft-line" stroke="${col}" vector-effect="non-scaling-stroke"/>`;
+    if (P.hover){
+      const last = pts[pts.length - 1], ok = canAdd(P.hover);
+      html += `<line x1="${last[0]}" y1="${last[1]}" x2="${P.hover[0]}" y2="${P.hover[1]}" class="draft-line draft-open" stroke="${ok ? col : "var(--bad)"}" vector-effect="non-scaling-stroke"/>`;
+      if (pts.length >= 2) html += `<line x1="${P.hover[0]}" y1="${P.hover[1]}" x2="${pts[0][0]}" y2="${pts[0][1]}" class="draft-line draft-open" stroke="#fff" stroke-opacity=".7" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+    }
+  }
+  pts.forEach((p, i) => {
+    const first = i === 0 && !P.closed && pts.length >= 3;
+    html += `<circle cx="${p[0]}" cy="${p[1]}" r="${(first ? 8 : 5.5) * px}" class="draft-v ${first ? "first" : ""}" stroke="${lineCol}" vector-effect="non-scaling-stroke"/>`;
+  });
+  g.innerHTML = html;
+}
+
+/* ---------- border drawing ---------- */
+function startDrawing(opts){
+  const d = S.draft;
+  S.placing = {
+    targetId: opts.targetId, isAdminEdit: !!opts.isAdminEdit,
+    budget: budgetFor(opts.players), ignoreBudget: !!opts.isAdminEdit,
+    color: opts.color, pts: opts.pts ? opts.pts.map(p => [...p]) : [], closed: !!opts.pts,
+    hover: null, dragIdx: -1, error: null, over: false, note: null
+  };
+  if (S.placing.closed) revalidate();
+  svg.classList.add("placing");
+  renderBanner(); drawPlots();
+  if (opts.pts){ const c = S.claims.find(x => x.id === opts.targetId); if (c) flyToClaim(c); }
+  if (matchMedia("(max-width: 860px)").matches) wrap.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function stopDrawing(){
+  S.placing = null;
+  svg.classList.remove("placing");
+  renderBanner(); drawPlots();
+}
+function usedLength(){
+  const P = S.placing, pts = P.pts;
+  if (P.closed) return perim(pts, true);
+  if (P.hover && pts.length) return perim(pts, false) + dist(pts[pts.length - 1], P.hover) + (pts.length >= 1 ? dist(P.hover, pts[0]) : 0);
+  return perim(pts, true);
+}
+function canAdd(p){
+  const P = S.placing, pts = P.pts;
+  if (P.ignoreBudget || !pts.length) return true;
+  return perim(pts, false) + dist(pts[pts.length - 1], p) + dist(p, pts[0]) <= P.budget;
+}
+function addPoint(p){
+  const P = S.placing;
+  if (P.closed) return;
+  if (P.pts.length >= 3 && dist(p, P.pts[0]) <= 12 * pxSize()){ closeDraft(); return; }
+  if (P.pts.length >= MAX_POINTS){ P.note = "Mehr als " + MAX_POINTS + " Punkte gehen nicht. Schließ die Grenze."; renderBanner(); return; }
+  if (!canAdd(p)){ P.note = "Dafür reicht eure Grenzlänge nicht mehr. Schließ die Grenze oder nimm Punkte zurück."; renderBanner(); return; }
+  P.note = null;
+  P.pts.push(p);
+  drawPreview(); renderBanner();
+}
+function closeDraft(){
+  const P = S.placing;
+  if (P.pts.length < 3) return;
+  P.closed = true; P.hover = null; P.note = null;
+  revalidate(); drawPreview(); renderBanner();
+}
+function revalidate(){
+  const P = S.placing;
+  if (!P.closed){ P.error = null; P.over = false; return; }
+  P.over = !P.ignoreBudget && perim(P.pts, true) > P.budget + 0.5;
+  P.error = checkPoly(P.pts, P.targetId);
+}
+function updateBudget(){
+  const P = S.placing, el = $("#bBudget"); if (!P || !el) return;
+  const used = usedLength(), left = P.budget - used, over = left < -0.5;
+  el.classList.toggle("over", over);
+  $("#bBar").style.width = Math.min(100, used / P.budget * 100) + "%";
+  $("#bTxt").innerHTML = over
+    ? `<b>${fmt(-left)} Blöcke zu lang</b>`
+    : `<b>${fmt(Math.max(0, left))}</b> von ${fmt(P.budget)} Blöcken Grenze übrig`;
+  const ok = $("#bConfirm");
+  if (ok) ok.disabled = !!(P.error || P.over);
+  const msg = $("#bMsg");
+  if (msg && P.closed){
+    msg.innerHTML = P.error ? `<span class="bad">${esc(P.error)}</span>` : P.over ? `<span class="bad">Die Grenze ist länger als erlaubt. Zieh die Punkte enger zusammen.</span>` : `Passt. Fläche ca. ${fmt(area(P.pts))} Blöcke². Punkte kannst du noch verschieben.`;
+  }
+}
+function renderBanner(){
+  const b = $("#banner"), P = S.placing;
+  if (!P){ b.classList.remove("on"); b.innerHTML = ""; return; }
+  b.classList.add("on");
+  let text;
+  if (!P.pts.length) text = "Tipp auf die Karte, um den ersten Grenzpunkt zu setzen.";
+  else if (!P.closed) text = P.pts.length < 3 ? "Setz weitere Punkte entlang eurer Grenze." : "Weiter so. Tipp auf den ersten Punkt oder auf „Grenze schließen“.";
+  else text = "";
+  const label = P.isAdminEdit ? "Grenzen speichern" : P.targetId && S.claims.some(c => c.id === P.targetId) ? "Grenzen speichern" : "Gebiet claimen";
+  b.innerHTML = `
+    <p id="bMsg">${P.note ? `<span class="bad">${esc(P.note)}</span>` : esc(text)}${!P.closed ? `<small>Ziehen verschiebt die Karte, Punkte lassen sich mit der Maus oder dem Finger verschieben.</small>` : ""}</p>
+    ${P.ignoreBudget ? `<div class="budget"><span class="muted">Als Admin gilt für dich kein Limit (Budget des Teams: ${fmt(P.budget)} Blöcke, jetzt ${fmt(usedLength())}).</span></div>` : `<div class="budget" id="bBudget"><div class="bar"><i id="bBar"></i></div><span id="bTxt"></span></div>`}
+    <div class="acts">
+      <button class="btn small" id="bCancel">Abbrechen</button>
+      ${P.closed ? `<button class="btn small" id="bReopen">Weiter zeichnen</button>` : `<button class="btn small" id="bUndo" ${P.pts.length ? "" : "disabled"}>Rückgängig</button>`}
+      ${P.pts.length ? `<button class="btn small" id="bClear">Neu anfangen</button>` : ""}
+      ${P.closed ? `<button class="btn small primary" id="bConfirm">${label}</button>` : `<button class="btn small primary" id="bClose" ${P.pts.length >= 3 ? "" : "disabled"}>Grenze schließen</button>`}
+    </div>`;
+  $("#bCancel").onclick = stopDrawing;
+  const u = $("#bUndo"); if (u) u.onclick = () => { P.pts.pop(); P.note = null; drawPreview(); renderBanner(); };
+  const ro = $("#bReopen"); if (ro) ro.onclick = () => { P.closed = false; P.note = null; revalidate(); drawPreview(); renderBanner(); };
+  const cl = $("#bClear"); if (cl) cl.onclick = () => { P.pts = []; P.closed = false; P.note = null; revalidate(); drawPreview(); renderBanner(); };
+  const cz = $("#bClose"); if (cz) cz.onclick = closeDraft;
+  const ok = $("#bConfirm"); if (ok) ok.onclick = confirmDrawing;
+  updateBudget();
+}
+async function confirmDrawing(){
+  const P = S.placing;
+  revalidate();
+  if (!P.closed || P.error || P.over || !S.db) { renderBanner(); return; }
+  const btn = $("#bConfirm"); btn.disabled = true;
+  const c = centroid(P.pts);
+  const geo = { pts: P.pts.map(p => ({ x: p[0], z: p[1] })), x: Math.round(c[0]), z: Math.round(c[1]), updatedAt: Date.now() };
+  try{
+    if (P.isAdminEdit){
+      await S.db.doc("claims/" + P.targetId).update(geo);
+      toast("Grenzen gespeichert");
+    } else {
+      const d = S.draft, existing = myClaim();
+      const body = { ...geo, team: d.team.trim(), players: d.players, color: d.color, members: (d.members || "").trim(), note: (d.note || "").trim() };
+      if (existing) await S.db.doc("claims/" + S.uid).update(body);
+      else await S.db.doc("claims/" + S.uid).set({ ...body, status: S.settings.requireApproval ? "pending" : "approved", createdAt: Date.now() });
+      toast(existing ? "Grenzen gespeichert" : "Gebiet geclaimt");
+      S.draft = null; S.selected = S.uid;
+    }
+    stopDrawing(); renderMine(); renderTeams();
+  }catch(e){ btn.disabled = false; toast(errMsg(e)); }
+}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => setTab(t.dataset.tab));
+function setTab(name){
+  S.tab = name;
+  document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t.dataset.tab === name));
+  for (const n of ["teams", "mine", "admin"]) $("#pane-" + n).hidden = n !== name;
+}
+
+/* ---------- header ---------- */
+function renderHeader(){
+  const s = S.settings;
+  $("#title").textContent = s.title || DEFAULTS.title;
+  $("#subtitle").textContent = s.subtitle || "";
+  document.title = (s.title || "EL-SMP") + " · Gebiete";
+  const open = claimsOpen();
+  const st = $("#status");
+  st.classList.toggle("closed", !open);
+  let txt = open ? "Claimen offen" : "Claimen geschlossen";
+  if (open && s.deadline) txt = "Offen bis " + new Date(s.deadline).toLocaleDateString("de-AT", { day: "numeric", month: "short" });
+  st.querySelector("span").textContent = txt;
+  const cd = $("#countdown"), start = new Date(s.start);
+  if (!s.start || isNaN(start)){ cd.innerHTML = ""; return; }
+  const ms = start - new Date();
+  if (ms <= 0){ cd.innerHTML = `<b>Live</b><span>Der Server läuft</span>`; return; }
+  const days = Math.floor(ms / 864e5), hrs = Math.floor(ms % 864e5 / 36e5);
+  const dateStr = start.toLocaleDateString("de-AT", { day: "numeric", month: "long" });
+  cd.innerHTML = days >= 1
+    ? `<b>${days}</b><span>${days === 1 ? "Tag" : "Tage"} bis zum Start am ${dateStr}</span>`
+    : `<b>${hrs} h</b><span>bis zum Start</span>`;
+}
+setInterval(renderHeader, 60000);
+
+/* ---------- names ---------- */
+async function resolveNames(){
+  if (!S.user || !S.user.profiles) return;
+  const ids = S.claims.map(c => c.id).filter(id => !(id in S.names));
+  if (!ids.length) return;
+  try{
+    const ps = await S.user.profiles(ids);
+    for (const id of ids) S.names[id] = (ps && ps[id] && ps[id].name) || "";
+    renderTeams(); if (S.isAdmin) renderAdmin();
+  }catch(e){}
+}
+
+/* ---------- teams pane ---------- */
+function claimFacts(c){
+  return `<dt>Spieler</dt><dd>${c.players}</dd>
+    ${c.members ? `<dt>Team</dt><dd>${esc(c.members)}</dd>` : ""}
+    <dt>Mitte</dt><dd>X ${c.cx}, Z ${c.cz}</dd>
+    <dt>Grenzlänge</dt><dd>ca. ${fmt(c.perim)} Blöcke</dd>
+    <dt>Fläche</dt><dd>ca. ${fmt(c.area)} Blöcke²</dd>`;
+}
+function renderTeams(){
+  const el = $("#pane-teams");
+  const players = S.claims.reduce((a, c) => a + (+c.players || 0), 0);
+  if (!S.loaded){
+    el.innerHTML = `<p class="muted">${S.slow ? "Die Gebiete sind gerade nicht erreichbar. Die Karte funktioniert trotzdem." : "Gebiete werden geladen…"}</p>`; return;
+  }
+  let html = "";
+  const sel = S.claims.find(c => c.id === S.selected);
+  if (sel){
+    const who = S.names[sel.id];
+    html += `<div class="detail" style="--c:${esc(sel.color)}">
+      <button class="close" id="dClose" aria-label="Schließen">×</button>
+      ${sel.id === S.uid ? `<span class="tag mine">Euer Gebiet</span>` : sel.status === "pending" ? `<span class="tag pending">Wartet auf Freigabe</span>` : ``}
+      <h2>${esc(sel.team)}</h2>
+      ${sel.note ? `<p style="margin:6px 0 0">${esc(sel.note)}</p>` : ""}
+      <dl>${claimFacts(sel)}${who && sel.id !== S.uid ? `<dt>Geclaimt von</dt><dd>${esc(who)}</dd>` : ""}</dl>
+    </div>`;
+  }
+  html += `<div class="stats">
+    <div class="stat"><b>${S.claims.length}</b><span>Teams</span></div>
+    <div class="stat"><b>${players}</b><span>Spieler</span></div>
+    <div class="stat"><b>${S.claims.filter(c => c.status === "pending").length}</b><span>offen zur Freigabe</span></div>
+  </div>`;
+  if (!S.claims.length){
+    html += `<div class="empty"><p style="margin:0 0 10px"><b>Noch hat niemand ein Gebiet.</b></p><p style="margin:0 0 14px">Zieht als erstes Team eure Grenzen.</p><button class="btn primary" id="goMine">Gebiet claimen</button></div>`;
+  } else {
+    html += `<input class="search" id="search" type="search" placeholder="Team suchen" value="${esc(S.search)}" aria-label="Team suchen">`;
+    const q = S.search.trim().toLowerCase();
+    const list = S.claims.filter(c => !q || c.team.toLowerCase().includes(q) || (c.members || "").toLowerCase().includes(q))
+      .sort((a, b) => (b.id === S.uid) - (a.id === S.uid) || a.team.localeCompare(b.team, "de"));
+    html += `<ul class="list">` + list.map(c => `<li><button class="item ${c.id === S.selected ? "sel" : ""}" data-id="${esc(c.id)}">
+      <span class="sw" style="background:${esc(c.color)}"></span>
+      <span class="grow"><span class="nm">${esc(c.team)}</span><span class="meta">${c.players} Spieler, X ${c.cx} Z ${c.cz}</span></span>
+      ${c.id === S.uid ? `<span class="tag mine">Ihr</span>` : c.status === "pending" ? `<span class="tag pending">offen</span>` : ""}
+    </button></li>`).join("") + `</ul>`;
+    if (!list.length) html += `<p class="muted">Kein Team passt zu „${esc(S.search)}“.</p>`;
+  }
+  el.innerHTML = html;
+  const dc = $("#dClose"); if (dc) dc.onclick = () => select(null);
+  const gm = $("#goMine"); if (gm) gm.onclick = () => setTab("mine");
+  const s = $("#search"); if (s) s.oninput = e => { S.search = e.target.value; const pos = e.target.selectionStart; renderTeams(); const n = $("#search"); n.focus(); n.setSelectionRange(pos, pos); };
+  el.querySelectorAll(".item").forEach(b => b.onclick = () => select(b.dataset.id, true));
+}
+
+/* ---------- mine pane ---------- */
+function newDraft(from){
+  const used = new Set(S.claims.map(c => c.color));
+  return {
+    team: from ? from.team : "",
+    players: from ? from.players : Math.min(S.settings.maxPlayers, Math.max(S.settings.minPlayers, 3)),
+    color: from ? from.color : (COLORS.find(c => !used.has(c)) || COLORS[0]),
+    members: from ? from.members || "" : "",
+    note: from ? from.note || "" : ""
+  };
+}
+function budgetIcon(color){
+  return `<svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><polygon points="12,16 30,8 46,18 44,38 28,48 10,36" fill="${esc(color)}" fill-opacity=".3" stroke="${esc(color)}" stroke-width="2.4" stroke-dasharray="5 3" stroke-linejoin="round"/></svg>`;
+}
+function renderMine(){
+  const el = $("#pane-mine"), mine = myClaim(), st = S.settings;
+  if (!S.db){ el.innerHTML = `<h2>Mein Gebiet</h2><div class="note warn">Der Server ist gerade nicht erreichbar. Lade die Seite gleich neu.</div>`; return; }
+  if (!S.loaded){ el.innerHTML = `<h2>Mein Gebiet</h2><p class="muted">Wird geladen…</p>`; return; }
+  if (S.readOnly){ el.innerHTML = `<h2>Mein Gebiet</h2><div class="note warn">Du kannst die Karte ansehen, aber nichts claimen. Frag einen Admin nach Bearbeitungsrechten für diese Seite.</div>`; return; }
+  const open = claimsOpen();
+
+  if (mine && !S.draft){
+    const budget = budgetFor(mine.players);
+    let html = `<div class="detail" style="--c:${esc(mine.color)}">
+      ${mine.status === "pending" ? `<span class="tag pending">Wartet auf Freigabe</span>` : `<span class="tag mine">Euer Gebiet</span>`}
+      <h2>${esc(mine.team)}</h2>
+      <dl>${claimFacts(mine)}<dt>Erlaubt</dt><dd>${fmt(budget)} Blöcke Grenze</dd>${mine.note ? `<dt>Plan</dt><dd>${esc(mine.note)}</dd>` : ""}</dl>
+      <div class="btns">
+        <button class="btn small" id="mShow">Auf Karte zeigen</button>
+        ${open ? `<button class="btn small" id="mEdit">Bearbeiten</button><button class="btn small" id="mMove">Grenzen ändern</button><button class="btn small danger" id="mDel">Gebiet freigeben</button>` : ""}
+      </div>
+    </div>`;
+    if (!open) html += `<div class="note info">Das Claimen ist geschlossen. Änderungen gehen nur noch über einen Admin.</div>`;
+    if (S.user && S.user.loginLink) html += `<div class="note info">Euer Gebiet hängt an diesem Browser. Auf einem anderen Gerät weitermachen? Diesen Link dort öffnen (nicht weitergeben):<input class="search" id="mLink" readonly value="${esc(S.user.loginLink())}" style="margin:8px 0 0"></div>`;
+    el.innerHTML = html;
+    const ml = $("#mLink"); if (ml) ml.onfocus = () => ml.select();
+    $("#mShow").onclick = () => select(mine.id, true);
+    if (open){
+      $("#mEdit").onclick = () => { S.draft = newDraft(mine); S.draft.editing = true; renderMine(); };
+      $("#mMove").onclick = () => { S.draft = newDraft(mine); startDrawing({ targetId: S.uid, players: mine.players, color: mine.color, pts: mine.pts }); };
+      armConfirm($("#mDel"), "Ja, wirklich freigeben", async () => {
+        try{ await S.db.doc("claims/" + S.uid).delete(); toast("Gebiet freigegeben"); S.selected = null; }catch(e){ toast(errMsg(e)); }
+      });
+    }
+    return;
+  }
+
+  if (!open && !mine){ el.innerHTML = `<h2>Mein Gebiet</h2><div class="note info">Das Claimen ist gerade geschlossen. Schau dir trotzdem an, wo die anderen Teams bauen.</div>`; return; }
+
+  if (!S.draft) S.draft = newDraft();
+  const d = S.draft, budget = budgetFor(d.players), side = budget / 4;
+  let html = `<h2>${d.editing ? "Gebiet bearbeiten" : "Gebiet claimen"}</h2>
+  <p class="lead">${d.editing ? "Ändert Name, Spielerzahl oder Farbe." : "Gebt euer Team an, dann zieht ihr eure Grenzen direkt auf der Karte."}</p>
+  <label class="f"><span>Teamname</span><input type="text" id="fTeam" maxlength="32" value="${esc(d.team)}" placeholder="z. B. Die Redstone-Bande" autocomplete="off"></label>
+  <label class="f"><span>Spieler im Team</span>
+    <div class="stepper"><button type="button" id="fMinus" aria-label="Weniger" ${d.players <= st.minPlayers ? "disabled" : ""}>−</button><output id="fPlayers">${d.players}</output><button type="button" id="fPlus" aria-label="Mehr" ${d.players >= st.maxPlayers ? "disabled" : ""}>+</button></div>
+    <small>Erlaubt sind ${st.minPlayers} bis ${st.maxPlayers} Spieler pro Team.</small></label>
+  <div class="sizebox">${budgetIcon(d.color)}<div><b>${fmt(budget)} Blöcke Grenzlänge</b><span>So lang darf eure Grenze insgesamt sein. Das reicht z. B. für ein Quadrat von ${fmt(side)} × ${fmt(side)} Blöcken. Mehr Spieler, mehr Grenze.</span></div></div>
+  <label class="f"><span>Teamfarbe</span></label>
+  <div class="colors" role="group" aria-label="Teamfarbe" style="margin:-8px 0 16px">${COLORS.map(c => `<button type="button" style="background:${c}" data-c="${c}" aria-pressed="${c === d.color}" aria-label="Farbe ${c}"></button>`).join("")}</div>
+  <label class="f"><span>Mitglieder <span class="muted" style="font-weight:400">(optional)</span></span><input type="text" id="fMembers" maxlength="200" value="${esc(d.members)}" placeholder="Minecraft-Namen, mit Komma getrennt"></label>
+  <label class="f"><span>Was baut ihr? <span class="muted" style="font-weight:400">(optional)</span></span><textarea id="fNote" maxlength="200" placeholder="z. B. Hafenstadt mit Leuchtturm">${esc(d.note)}</textarea></label>
+  <div id="fErr"></div>
+  <div class="btns">
+    ${d.editing ? `<button class="btn" id="fCancel">Abbrechen</button><button class="btn primary" id="fSave">Änderungen speichern</button>` : `<button class="btn primary wide" id="fPlace">Grenzen auf der Karte ziehen</button>`}
+  </div>`;
+  el.innerHTML = html;
+
+  const sync = () => { d.team = $("#fTeam").value; d.members = $("#fMembers").value; d.note = $("#fNote").value; };
+  $("#fMinus").onclick = () => { sync(); d.players = Math.max(st.minPlayers, d.players - 1); renderMine(); };
+  $("#fPlus").onclick = () => { sync(); d.players = Math.min(st.maxPlayers, d.players + 1); renderMine(); };
+  el.querySelectorAll(".colors button").forEach(b => b.onclick = () => { sync(); d.color = b.dataset.c; renderMine(); });
+  const validate = () => {
+    sync();
+    const name = d.team.trim();
+    if (name.length < 2) return "Gib einen Teamnamen mit mindestens 2 Zeichen ein.";
+    const dup = S.claims.find(c => c.id !== S.uid && c.team.trim().toLowerCase() === name.toLowerCase());
+    if (dup) return "Den Teamnamen „" + dup.team + "“ gibt es schon.";
+    return null;
+  };
+  const showErr = m => { $("#fErr").innerHTML = m ? `<div class="note warn">${esc(m)}</div>` : ""; };
+  const fp = $("#fPlace");
+  if (fp) fp.onclick = () => { const m = validate(); showErr(m); if (!m) startDrawing({ targetId: S.uid, players: d.players, color: d.color }); };
+  const fc = $("#fCancel"); if (fc) fc.onclick = () => { S.draft = null; renderMine(); };
+  const fs = $("#fSave");
+  if (fs) fs.onclick = async () => {
+    const m = validate(); if (m) return showErr(m);
+    if (mine.perim > budget + 0.5) return showErr(`Mit ${d.players} Spielern habt ihr ${fmt(budget)} Blöcke Grenze, eure ist aber ${fmt(mine.perim)} lang. Macht zuerst über „Grenzen ändern“ euer Gebiet kleiner.`);
+    fs.disabled = true;
+    try{
+      await S.db.doc("claims/" + S.uid).update({ team: d.team.trim(), players: d.players, color: d.color, members: d.members.trim(), note: d.note.trim(), updatedAt: Date.now() });
+      S.draft = null; toast("Änderungen gespeichert"); renderMine();
+    }catch(e){ fs.disabled = false; showErr(errMsg(e)); }
+  };
+}
+
+/* ---------- admin pane ---------- */
+function renderAdmin(){
+  const el = $("#pane-admin");
+  if (!S.isAdmin){ el.innerHTML = ""; return; }
+  if (!S.adminDraft) S.adminDraft = { ...S.settings };
+  const a = S.adminDraft, bad = overlaps();
+  const ratioImg = S.imgRatio, ratioB = (a.maxZ - a.minZ) / (a.maxX - a.minX);
+  const ratioWarn = ratioImg && Math.abs(ratioImg - ratioB) > 0.02;
+  const num = (id, label, val, hint, step = 1) => `<label class="f"><span>${label}</span><input type="number" id="${id}" value="${esc(val)}" step="${step}">${hint ? `<small>${hint}</small>` : ""}</label>`;
+  const bMin = budgetFor(+a.minPlayers, a), bMax = budgetFor(+a.maxPlayers, a);
+
+  let html = `<h2>Admin</h2><p class="lead">Einstellungen gelten für alle sofort nach dem Speichern.</p>`;
+  html += `<section class="adm-sec"><h3>Anmeldung</h3>
+    <label class="switch"><input type="checkbox" id="aOpen" ${a.open ? "checked" : ""}><span><b>Gebiete können geclaimt werden</b><small>Aus heißt: Spieler sehen die Karte, können aber nichts ändern.</small></span></label>
+    <label class="switch"><input type="checkbox" id="aAppr" ${a.requireApproval ? "checked" : ""}><span><b>Neue Gebiete erst nach Freigabe</b><small>Neue Gebiete erscheinen gepunktet, bis ihr sie bestätigt.</small></span></label>
+    <label class="f"><span>Anmeldeschluss</span><input type="datetime-local" id="aDeadline" value="${esc(a.deadline)}"><small>Leer lassen für kein automatisches Ende.</small></label>
+    <label class="f"><span>Serverstart</span><input type="datetime-local" id="aStart" value="${esc(a.start)}"><small>Steuert den Countdown oben.</small></label>
+  </section>`;
+  html += `<section class="adm-sec"><h3>Teams und Grenzlänge</h3>
+    <div class="row2">${num("aMinP", "Min. Spieler", a.minPlayers)}${num("aMaxP", "Max. Spieler", a.maxPlayers)}</div>
+    <div class="row2">${num("aBase", "Grundlänge", a.baseBorder, "Blöcke Grenze pro Team", 10)}${num("aPer", "Pro Spieler", a.perPlayerBorder, "Blöcke Grenze zusätzlich", 10)}</div>
+    ${num("aGap", "Mindestabstand zwischen Gebieten", a.minGap, "In Blöcken")}
+    <p class="muted" style="font-size:.85rem;margin:-4px 0 0">${a.minPlayers} Spieler: ${fmt(bMin)} Blöcke Grenze, etwa ${fmt(bMin / 4)} × ${fmt(bMin / 4)} als Quadrat. ${a.maxPlayers} Spieler: ${fmt(bMax)} Blöcke, etwa ${fmt(bMax / 4)} × ${fmt(bMax / 4)}.</p>
+  </section>`;
+  html += `<section class="adm-sec"><h3>Spawn-Schutzzone</h3>
+    <div class="row3">${num("aSX", "Spawn X", a.spawnX)}${num("aSZ", "Spawn Z", a.spawnZ)}${num("aSR", "Radius", a.spawnR)}</div>
+  </section>`;
+  html += `<section class="adm-sec"><h3>Karte</h3>
+    <img class="mapthumb" src="${esc(a.mapAssetId ? "/_blob/" + a.mapAssetId : T.idx ? "terrain/overview.webp" : DEFAULT_MAP)}" alt="Aktuelle Karte">
+    <div class="btns" style="margin:0 0 14px">
+      ${S.assets ? `<label class="btn small">Neue Karte hochladen<input type="file" id="aFile" accept="image/png,image/jpeg,image/webp" hidden></label>` : ""}
+      ${a.mapAssetId ? `<button class="btn small" id="aDefMap">${T.idx ? "Gerenderte Welt" : "Ursprüngliche Karte"}</button>` : ""}
+    </div>
+    ${S.assets ? "" : `<div class="note info">Hochladen geht nur für Bearbeiter der Seite.</div>`}
+    <p class="muted" style="font-size:.85rem;margin:0 0 10px">Gib die Minecraft-Koordinaten der Bildränder an, damit Koordinaten und Grenzlängen stimmen.</p>
+    <div class="row2">${num("aMinX", "Links (min. X)", a.minX)}${num("aMaxX", "Rechts (max. X)", a.maxX)}</div>
+    <div class="row2">${num("aMinZ", "Oben (min. Z)", a.minZ)}${num("aMaxZ", "Unten (max. Z)", a.maxZ)}</div>
+    ${ratioWarn ? `<div class="note warn">Das Bild ist ${ratioImg > ratioB ? "höher" : "breiter"} als der eingetragene Bereich und wird verzerrt. <button class="btn small" id="aFixRatio" style="margin-top:8px">Unten (max. Z) anpassen</button></div>` : ""}
+  </section>`;
+  html += `<section class="adm-sec"><h3>Texte</h3>
+    <label class="f"><span>Titel</span><input type="text" id="aTitle" maxlength="48" value="${esc(a.title)}"></label>
+    <label class="f"><span>Untertitel</span><input type="text" id="aSub" maxlength="120" value="${esc(a.subtitle)}"></label>
+  </section>
+  <div class="btns" style="position:sticky;bottom:-28px;background:var(--panel);padding:12px 0;margin-top:4px;border-top:1px solid var(--line)">
+    <button class="btn primary" id="aSave">Speichern</button>
+    <button class="btn" id="aReset">Verwerfen</button>
+  </div>`;
+
+  html += `<section class="adm-sec"><h3>Alle Gebiete (${S.claims.length})</h3>`;
+  if (!S.claims.length) html += `<p class="muted">Noch keine Gebiete.</p>`;
+  const sorted = [...S.claims].sort((x, y) => (y.status === "pending") - (x.status === "pending") || x.team.localeCompare(y.team, "de"));
+  for (const c of sorted){
+    const who = S.names[c.id], overB = c.perim > budgetFor(c.players) + 0.5;
+    html += `<div class="admrow"><span class="sw" style="background:${esc(c.color)}"></span>
+      <div class="grow"><div class="nm">${esc(c.team)}</div><div class="meta">${c.players} Spieler, ${fmt(c.perim)} von ${fmt(budgetFor(c.players))} Blöcken Grenze${who ? ", von " + esc(who) : ""}</div></div>
+      ${bad.has(c.id) ? `<span class="tag warn">überschneidet</span>` : overB ? `<span class="tag warn">zu lang</span>` : c.status === "pending" ? `<span class="tag pending">offen</span>` : ""}
+      <button class="btn small" data-edit="${esc(c.id)}">${S.adminEdit === c.id ? "Schließen" : "Bearbeiten"}</button>
+    </div>`;
+    if (S.adminEdit === c.id){
+      html += `<div class="admedit">
+        <div class="row2"><label class="f"><span>Teamname</span><input type="text" id="eTeam" value="${esc(c.team)}" maxlength="32"></label>${num("ePlayers", "Spieler", c.players)}</div>
+        <div class="btns">
+          ${c.status === "pending" ? `<button class="btn small primary" data-approve="${esc(c.id)}">Freigeben</button>` : `<button class="btn small" data-unapprove="${esc(c.id)}">Freigabe zurücknehmen</button>`}
+          <button class="btn small" data-save="${esc(c.id)}">Speichern</button>
+          <button class="btn small" data-border="${esc(c.id)}">Grenzen bearbeiten</button>
+          <button class="btn small" data-show="${esc(c.id)}">Auf Karte</button>
+          <button class="btn small danger" data-del="${esc(c.id)}">Löschen</button>
+        </div>
+      </div>`;
+    }
+  }
+  html += `</section>`;
+  if (S.claims.length && S.downloads) html += `<div class="btns"><button class="btn small" id="aCsv">Liste als CSV herunterladen</button></div>`;
+  el.innerHTML = html;
+
+  const ids = { aDeadline:"deadline", aStart:"start", aMinP:"minPlayers", aMaxP:"maxPlayers", aBase:"baseBorder", aPer:"perPlayerBorder", aGap:"minGap", aSX:"spawnX", aSZ:"spawnZ", aSR:"spawnR", aMinX:"minX", aMaxX:"maxX", aMinZ:"minZ", aMaxZ:"maxZ", aTitle:"title", aSub:"subtitle" };
+  const numeric = new Set(["minPlayers","maxPlayers","baseBorder","perPlayerBorder","minGap","spawnX","spawnZ","spawnR","minX","maxX","minZ","maxZ"]);
+  for (const [id, key] of Object.entries(ids)){
+    const inp = $("#" + id);
+    inp.onchange = () => { a[key] = numeric.has(key) ? Number(inp.value) : inp.value; renderAdmin(); };
+  }
+  $("#aOpen").onchange = e => a.open = e.target.checked;
+  $("#aAppr").onchange = e => a.requireApproval = e.target.checked;
+  $("#aReset").onclick = () => { S.adminDraft = { ...S.settings }; renderAdmin(); };
+  $("#aSave").onclick = saveSettings;
+  const fr = $("#aFixRatio"); if (fr) fr.onclick = () => { a.maxZ = Math.round(a.minZ + (a.maxX - a.minX) * ratioImg); renderAdmin(); };
+  const dm = $("#aDefMap"); if (dm) dm.onclick = () => { a.mapAssetId = ""; measureImg(DEFAULT_MAP); renderAdmin(); };
+  const file = $("#aFile");
+  if (file) file.onchange = async () => {
+    const f = file.files[0]; if (!f) return;
+    toast("Karte wird hochgeladen…");
+    try{ const res = await S.assets.upload(f); a.mapAssetId = res.id; measureImg(res.url); toast("Karte hochgeladen. Speichern nicht vergessen."); renderAdmin(); }
+    catch(e){ toast("Hochladen fehlgeschlagen: " + (e && e.message || "unbekannter Fehler")); }
+  };
+  el.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => { S.adminEdit = S.adminEdit === b.dataset.edit ? null : b.dataset.edit; renderAdmin(); });
+  el.querySelectorAll("[data-show]").forEach(b => b.onclick = () => select(b.dataset.show, true));
+  el.querySelectorAll("[data-approve]").forEach(b => b.onclick = () => adminUpdate(b.dataset.approve, { status: "approved" }, "Gebiet freigegeben"));
+  el.querySelectorAll("[data-unapprove]").forEach(b => b.onclick = () => adminUpdate(b.dataset.unapprove, { status: "pending" }, "Freigabe zurückgenommen"));
+  el.querySelectorAll("[data-save]").forEach(b => b.onclick = () => adminUpdate(b.dataset.save, { team: $("#eTeam").value.trim() || "Team", players: Math.max(1, +$("#ePlayers").value || 1) }, "Gebiet gespeichert"));
+  el.querySelectorAll("[data-border]").forEach(b => b.onclick = () => {
+    const c = S.claims.find(x => x.id === b.dataset.border); if (!c) return;
+    startDrawing({ targetId: c.id, players: c.players, color: c.color, pts: c.pts, isAdminEdit: true });
+  });
+  el.querySelectorAll("[data-del]").forEach(b => armConfirm(b, "Ja, wirklich löschen", async () => {
+    const c = S.claims.find(x => x.id === b.dataset.del); if (!c) return;
+    try{ await S.db.doc("claims/" + c.id).delete(); S.adminEdit = null; toast("Gebiet „" + c.team + "“ gelöscht"); }catch(e){ toast(errMsg(e)); }
+  }));
+  const csv = $("#aCsv"); if (csv) csv.onclick = exportCsv;
+}
+async function adminUpdate(id, patch, msg){
+  try{ await S.db.doc("claims/" + id).update({ ...patch, updatedAt: Date.now() }); toast(msg); }catch(e){ toast(errMsg(e)); }
+}
+async function saveSettings(){
+  const a = S.adminDraft;
+  if (a.maxX <= a.minX || a.maxZ <= a.minZ) return toast("Die Kartenränder passen nicht: max. muss größer als min. sein.");
+  if (a.maxPlayers < a.minPlayers || a.minPlayers < 1) return toast("Min. und max. Spieler passen nicht zusammen.");
+  const clean = {};
+  for (const k of Object.keys(DEFAULTS)) clean[k] = a[k] ?? DEFAULTS[k];
+  try{ await S.db.doc("settings/main").set(clean); toast("Einstellungen gespeichert"); }catch(e){ toast(errMsg(e)); }
+}
+async function exportCsv(){
+  const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const rows = [["Team","Spieler","Mitglieder","Mitte X","Mitte Z","Grenzlänge","Fläche","Status","Geclaimt von","Plan","Grenzpunkte"]]
+    .concat(S.claims.map(c => [c.team, c.players, c.members, c.cx, c.cz, Math.round(c.perim), Math.round(c.area), c.status === "pending" ? "offen" : "freigegeben", S.names[c.id] || "", c.note, c.pts.map(p => p[0] + " " + p[1]).join(" | ")]));
+  try{ await S.downloads.save({ filename: "gebiete.csv", data: "\ufeff" + rows.map(r => r.map(q).join(";")).join("\n") }); }catch(e){}
+}
+function measureImg(src){
+  if (src === DEFAULT_MAP && T.idx){ S.imgRatio = null; return; }   // Gelände liegt in echten Koordinaten
+  const im = new Image();
+  im.onload = () => { S.imgRatio = im.naturalHeight / im.naturalWidth; if (S.isAdmin) renderAdmin(); };
+  im.src = src;
+}
+
+/* ---------- data ---------- */
+function onSettings(snap){
+  const data = snap.exists ? snap.data() : {};
+  S.settings = { ...DEFAULTS, ...data };
+  const bkey = [S.settings.minX, S.settings.maxX, S.settings.minZ, S.settings.maxZ].join(",");
+  const boundsChanged = onSettings.bkey !== bkey; onSettings.bkey = bkey;
+  if (!S.adminDraft || boundsChanged) S.adminDraft = { ...S.settings };
+  drawMapBase(); renderHeader();
+  if (boundsChanged) fit();
+  measureImg(mapSrc());
+  drawPlots(); renderTeams(); renderMine(); renderAdmin();
+}
+function normClaim(id, v){
+  let pts = Array.isArray(v.pts) ? v.pts.map(p => [Math.round(+p.x || 0), Math.round(+p.z || 0)]) : [];
+  if (pts.length < 3) pts = circlePts(+v.x || 0, +v.z || 0, +v.r || 40);
+  const c = centroid(pts);
+  return {
+    id, pts, bb: bbox(pts), area: area(pts), perim: perim(pts, true), cx: Math.round(c[0]), cz: Math.round(c[1]),
+    team: String(v.team || "Team"), players: Math.max(1, +v.players || 1), color: COLORS.includes(v.color) ? v.color : "#F4C04E",
+    members: String(v.members || ""), note: String(v.note || ""), status: v.status === "pending" ? "pending" : "approved"
+  };
+}
+function onClaims(snap){
+  S.loaded = true; S.slow = false;
+  S.claims = snap.docs.filter(d => d.exists).map(d => normClaim(d.id, d.data()));
+  if (S.selected && !S.claims.some(c => c.id === S.selected)) S.selected = null;
+  if (S.placing && S.placing.closed){ revalidate(); updateBudget(); }
+  drawPlots(); renderTeams(); if (!S.draft || !S.draft.editing) renderMine(); if (S.isAdmin) renderAdmin();
+  resolveNames();
+}
+
+async function init(){
+  drawMapBase(); renderHeader(); fit(); drawPlots(); renderTeams(); renderMine();
+  if (!window.claude || !window.claude.use){ S.loaded = true; renderTeams(); renderMine(); return; }
+  const [db, user, assets, downloads] = await Promise.all(["db", "user", "assets", "downloads"].map(n => window.claude.use(n).catch(() => null)));
+  S.db = db; S.user = user; S.assets = assets; S.downloads = downloads;
+  if (user){
+    try{ S.uid = await user.id(); }catch(e){}
+    try{ S.isAdmin = await user.canEdit(); }catch(e){}
+    try{ S.canWrite = await user.can("data.write"); }catch(e){}
+  }
+  if (S.canWrite === false && !S.isAdmin) S.readOnly = true;
+  if (!S.uid) S.readOnly = true;
+  document.querySelector('[data-tab="admin"]').hidden = !S.isAdmin;
+  if (!db){ S.loaded = true; renderTeams(); renderMine(); return; }
+  const timer = setTimeout(() => { if (!S.loaded){ S.slow = true; renderTeams(); } }, 10000);
+  db.doc("settings/main").onSnapshot(onSettings, () => {});
+  db.collection("claims").onSnapshot(s => { clearTimeout(timer); onClaims(s); }, () => { clearTimeout(timer); S.loaded = true; S.slow = true; renderTeams(); });
+  renderMine(); renderAdmin();
+}
+init();
+</script>
+</body>
+</html>

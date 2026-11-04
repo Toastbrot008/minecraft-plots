@@ -60,7 +60,8 @@ SESSION_DAYS = 30
 COOKIE = "elsmp_session"
 OPEN_PATHS = {"/", "/index.html", "/backend.js", "/api/me", "/favicon.ico",     # ohne Anmeldung erreichbar
               "/api/discord/login", "/api/discord/callback", CALLBACK_PATH,
-              "/api/register", "/api/login"}
+              "/api/register", "/api/login",
+              "/terrain/overview.webp"}   # Übersichtskarte als Hintergrund der Anmeldeseite
 DISCORD_API = "https://discord.com/api/v10"
 DISCORD_AUTHORIZE = "https://discord.com/oauth2/authorize"
 STATE_COOKIE = "elsmp_oauth"

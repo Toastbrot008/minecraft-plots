@@ -18,7 +18,7 @@
   --fill:rgba(120,120,128,.12); --fill2:rgba(120,120,128,.2); --sel:rgba(255,255,255,.72);
   --shadow:0 12px 40px -10px rgba(0,0,0,.32), 0 2px 6px rgba(0,0,0,.08);
   --panel:rgba(250,250,252,.9); --panel2:var(--fill); --bg:#1c2430;
-  --gold:#F4C04E; --gold-ink:#9A6700; --ok:#30D158; --bad:#FF453A; --bad-ink:#D70015; --mapbg:#1c2430;
+  --field:rgba(255,255,255,.55); --gold:#F4C04E; --gold-ink:#9A6700; --ok:#30D158; --bad:#FF453A; --bad-ink:#D70015; --mapbg:#1c2430;
   --display:-apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, "Segoe UI", system-ui, sans-serif;
   --body:-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", system-ui, sans-serif;
   --blur:blur(30px) saturate(190%);
@@ -32,7 +32,7 @@
     --edge:rgba(255,255,255,.14); --hi:rgba(255,255,255,.2); --sheen:rgba(255,255,255,.08);
     --fill:rgba(120,120,128,.22); --fill2:rgba(120,120,128,.32); --sel:rgba(255,255,255,.16);
     --shadow:0 14px 44px -10px rgba(0,0,0,.65), 0 2px 6px rgba(0,0,0,.3);
-    --panel:rgba(34,34,38,.92); --gold-ink:#F4C04E; --bad-ink:#FF6961; color-scheme:dark;
+    --panel:rgba(34,34,38,.92); --gold-ink:#F4C04E; --bad-ink:#FF6961; color-scheme:dark; --field:rgba(0,0,0,.28);
   }
 }
 :root[data-theme="dark"]{
@@ -41,7 +41,7 @@
   --edge:rgba(255,255,255,.14); --hi:rgba(255,255,255,.2); --sheen:rgba(255,255,255,.08);
   --fill:rgba(120,120,128,.22); --fill2:rgba(120,120,128,.32); --sel:rgba(255,255,255,.16);
   --shadow:0 14px 44px -10px rgba(0,0,0,.65), 0 2px 6px rgba(0,0,0,.3);
-  --panel:rgba(34,34,38,.92); --gold-ink:#F4C04E; --bad-ink:#FF6961; color-scheme:dark;
+  --panel:rgba(34,34,38,.92); --gold-ink:#F4C04E; --bad-ink:#FF6961; color-scheme:dark; --field:rgba(0,0,0,.28);
 }
 *,*::before,*::after{box-sizing:border-box}
 html,body{height:100%}
@@ -52,7 +52,9 @@ button{-webkit-tap-highlight-color:transparent}
 body{caret-color:transparent;cursor:default}
 input,textarea,select,[contenteditable]{caret-color:var(--accent);cursor:text}
 input[type=checkbox],select{cursor:pointer}
-.top,.corner,.mapctl,.tabs,.banner,.coords,.toast,.btn,.tab,.item,.tag{-webkit-user-select:none;user-select:none}
+/* Text lässt sich nirgends markieren (kein blaues Hervorheben), nur in Eingabefeldern */
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 /* ---------- Glas ---------- */
@@ -252,7 +254,8 @@ a{color:var(--accent)}
 .admrow .nm{font-weight:600}
 .admrow .meta{font-size:12px;color:var(--muted)}
 .admedit{background:var(--fill);border-radius:16px;padding:12px;margin:6px 0 10px}
-.mapthumb{width:100%;aspect-ratio:1;object-fit:cover;border-radius:16px;image-rendering:pixelated;background:var(--mapbg);margin-bottom:10px}
+.mapthumb{width:100%;aspect-ratio:1;object-fit:cover;border-radius:16px;image-rendering:pixelated;background:var(--fill);margin-bottom:10px}
+.savebar{position:sticky;bottom:-24px;margin:4px -20px 0;padding:12px 20px;border-top:1px solid var(--line);background-color:var(--glass-strong);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);z-index:1}
 
 /* Konto-Dialog */
 .dlg{border-radius:26px;background-color:var(--glass-strong);color:var(--ink);padding:22px;width:min(380px,calc(100vw - 32px))}
@@ -269,9 +272,16 @@ a{color:var(--accent)}
 .btn.discord{background:#5865F2;color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 4px 14px -4px rgba(88,101,242,.7)}
 .btn.discord:hover{background:#4752C4}
 .gate{position:fixed;inset:0;display:grid;place-items:center;padding:24px 16px;background:var(--mapbg);overflow:auto}
-.gate::before{content:"";position:fixed;inset:-40px;background:url("terrain/overview.webp") center/cover;filter:blur(18px) saturate(1.2);opacity:.8;transform:scale(1.45)}
+/* Die echte Weltkarte im Hintergrund, leicht abgedunkelt und langsam schwebend */
+.gate::before{content:"";position:fixed;inset:-6%;background:var(--mapbg) url("terrain/overview.webp") center/cover no-repeat;image-rendering:pixelated;transform:scale(1.35);animation:drift 60s ease-in-out infinite alternate}
+.gate::after{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(120% 90% at 50% 45%,transparent 35%,rgba(10,14,20,.45)),linear-gradient(rgba(10,14,20,.12),rgba(10,14,20,.12))}
+@keyframes drift{from{transform:scale(1.35) translate(-1.5%,-1%)}to{transform:scale(1.45) translate(1.5%,1%)}}
+.gatebox{z-index:1}
+.gatebox input[type=text],.gatebox input[type=password]{background:var(--field);box-shadow:inset 0 0 0 1px var(--edge)}
+.gatebox input[type=text]:focus,.gatebox input[type=password]:focus{box-shadow:inset 0 0 0 1px var(--edge),0 0 0 3px color-mix(in srgb,var(--accent) 40%,transparent)}
+.gatebox .lead,.gatebox label.f>span,.gatebox .swap{color:var(--ink);opacity:.75}
 .gate[hidden],.gate [hidden]{display:none}
-.gatebox{position:relative;width:min(380px,100%);border-radius:28px;padding:26px}
+.gatebox{position:relative;width:min(380px,100%);border-radius:32px;padding:28px;background-color:var(--glass-strong);-webkit-backdrop-filter:blur(26px) saturate(180%);backdrop-filter:blur(26px) saturate(180%)}
 .gatebox h1{font:700 24px/1.15 var(--display);letter-spacing:-.022em;margin:16px 0 4px}
 .gatebox .mark{width:44px;height:44px;border-radius:14px}
 .gatebox .mark svg{width:22px;height:22px}
@@ -281,8 +291,20 @@ a{color:var(--accent)}
 .toast{position:fixed;left:50%;top:calc(16px + var(--safe-t));transform:translate(-50%,-12px) scale(.96);opacity:0;padding:10px 18px;border-radius:999px;font-weight:600;font-size:14px;pointer-events:none;transition:opacity .2s,transform .3s cubic-bezier(.2,.9,.3,1.2);z-index:20;max-width:calc(100vw - 32px);text-align:center}
 .toast.on{opacity:1;transform:translate(-50%,0) scale(1)}
 
+/* Verschiebbare Fenster: Griff oben in der Mitte, Doppelklick setzt zurück (Skript ganz unten) */
+.grip{position:absolute;left:50%;top:-12px;width:40px;height:16px;margin-left:-20px;border:0;padding:0;border-radius:999px;cursor:grab;display:grid;place-items:center;background:var(--glass-strong);box-shadow:var(--shadow),inset 0 0 0 1px var(--edge);opacity:0;touch-action:none;transition:opacity .15s;z-index:3}
+.grip::before{content:"";width:18px;height:4px;border-radius:999px;background:var(--muted)}
+.mv:hover>.grip,.grip:focus-visible,.mv.dragging>.grip{opacity:1}
+.mv.dragging>.grip{cursor:grabbing}
+.mv.dragging{transition:none!important;-webkit-user-select:none;user-select:none}
+.panel>.grip{top:6px;background:var(--fill2);box-shadow:none;height:14px}
+.top.mv{cursor:grab}
+.top.mv.dragging{cursor:grabbing}
+@media (hover: none){ .grip{opacity:.7} }
+@media (max-width: 860px){ .grip{display:none} .top.mv{cursor:default} }
+
 /* Vorschaubilder der Gegend (public/previews, erzeugt mit tools/previews) */
-.pv{position:fixed;left:14px;bottom:calc(58px + var(--safe-b));width:min(380px,calc(100vw - 28px));padding:8px;border-radius:24px;z-index:5;
+.pv{position:fixed;left:14px;bottom:calc(58px + var(--safe-b));width:min(var(--pvw,380px),calc(100vw - 28px));padding:8px;border-radius:24px;z-index:5;
   opacity:0;visibility:hidden;transform:translateY(14px) scale(.97);transform-origin:left bottom;pointer-events:none;
   transition:opacity .18s,transform .25s,visibility 0s .25s}
 .pv.on{opacity:1;visibility:visible;transform:none;pointer-events:auto;transition:opacity .22s,transform .32s cubic-bezier(.2,.9,.3,1.1),visibility 0s}
@@ -296,6 +318,10 @@ a{color:var(--accent)}
 .pv-cap{display:flex;align-items:center;gap:8px;padding:8px 6px 2px 8px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .pv-cap b{color:var(--ink);font-family:var(--display);font-weight:600;font-size:13.5px}
 .pv-cap .sp{flex:1}
+.pv-rs{position:absolute;right:-6px;top:-6px;width:26px;height:26px;border:0;padding:0;border-radius:50%;cursor:nesw-resize;display:grid;place-items:center;color:var(--ink);background:var(--glass-strong);box-shadow:var(--shadow),inset 0 0 0 1px var(--edge);opacity:.55;touch-action:none;transition:opacity .15s,transform .15s;z-index:1}
+.pv-rs:hover,.pv.resizing .pv-rs{opacity:1;transform:scale(1.08)}
+.pv.resizing{transition:none;-webkit-user-select:none;user-select:none}
+.pv.resizing img{transition:none}
 .pv-x{width:28px;height:28px;flex:none;border-radius:50%;border:0;background:var(--fill);color:var(--muted);cursor:pointer;display:grid;place-items:center}
 .lb{position:fixed;inset:0;z-index:30;background:rgba(6,8,12,.92);display:grid;place-items:center;opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s}
 .lb.on{opacity:1;visibility:visible;transition:opacity .25s,visibility 0s}
@@ -325,6 +351,7 @@ a{color:var(--accent)}
   .coords{display:none}
   .pv{left:62px;right:10px;width:auto;bottom:auto;top:calc(70px + var(--safe-t));transform-origin:center top;transform:translateY(-12px) scale(.97)}
   .pv-grid{grid-template-columns:1fr 1fr 1fr}
+  .pv-rs{display:none}
   .pv-grid button:first-child{grid-column:auto;border-radius:14px}
   .lb .lb-p,.lb .lb-n{top:auto;margin:0;bottom:calc(10px + var(--safe-b))}
 }
@@ -407,9 +434,10 @@ a{color:var(--accent)}
   </main>
 </div>
 <div class="toast glass" id="toast"></div>
-<section class="pv glass" id="pv" aria-label="So sieht es hier aus">
+<section class="pv glass" id="pv" aria-label="Ansichten der Gegend">
+  <button class="pv-rs" id="pvRs" aria-label="Vorschau größer oder kleiner ziehen" title="Ziehen: größer/kleiner · Doppelklick: zurücksetzen"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg></button>
   <div class="pv-grid" id="pvGrid"></div>
-  <div class="pv-cap"><b>So sieht es hier aus</b><span id="pvPos"></span><span class="sp"></span>
+  <div class="pv-cap"><span id="pvPos"></span><span class="sp"></span>
     <button class="pv-x" id="pvX" aria-label="Vorschau schließen"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
 </section>
 <div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Vorschaubild">
@@ -1501,7 +1529,7 @@ function renderAdmin(){
     <label class="f"><span>Titel</span><input type="text" id="aTitle" maxlength="48" value="${esc(a.title)}"></label>
     <label class="f"><span>Untertitel</span><input type="text" id="aSub" maxlength="120" value="${esc(a.subtitle)}"></label>
   </section>
-  <div class="btns" style="position:sticky;bottom:-28px;background:var(--panel);padding:12px 0;margin-top:4px;border-top:1px solid var(--line)">
+  <div class="btns savebar">
     <button class="btn primary" id="aSave">Speichern</button>
     <button class="btn" id="aReset">Verwerfen</button>
   </div>`;
@@ -1676,8 +1704,9 @@ init();
   function aimAtTab(){
     const t = document.querySelector('.tab[aria-selected="true"]:not([hidden])'); if (!t) return;
     const r = t.getBoundingClientRect();
-    panel.style.setProperty("--ox", (r.left + r.width / 2 - panel.offsetLeft) + "px");
-    panel.style.setProperty("--oy", (r.top + r.height / 2 - panel.offsetTop) + "px");
+    const [dx, dy] = (panel.style.translate || "0px 0px").split(" ").map(v => parseFloat(v) || 0);
+    panel.style.setProperty("--ox", (r.left + r.width / 2 - panel.offsetLeft - dx) + "px");
+    panel.style.setProperty("--oy", (r.top + r.height / 2 - panel.offsetTop - (dy || 0)) + "px");
   }
   const setSheet = on => { aimAtTab(); body.classList.toggle("sheet-open", on); };
   addEventListener("resize", aimAtTab);
@@ -1724,6 +1753,123 @@ init();
     const c = S.claims.find(x => x.id === S.selected); if (c) fitClaim(c);
   });
 
+})();
+
+/* ---------- Fenster verschieben und Vorschau vergrößern ----------
+   Kopf, Konto, Zoom, Seitenblatt und Tab-Leiste lassen sich am Griff verschieben (Kopf auch als Ganzes).
+   Die Verschiebung ist ein CSS-translate, die Lage aus dem Layout bleibt also die Grundlage.
+   Doppelklick auf den Griff setzt ein Fenster zurück. Gemerkt wird alles pro Browser. */
+(() => {
+  const KEY = "elsmpWindows", PVKEY = "elsmpPreviewWidth";
+  const load = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+  const save = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+  const small = () => matchMedia("(max-width: 860px)").matches;
+  const pos = load(KEY) || {};
+  const KEEP = n => n !== "blatt";   // das Seitenblatt startet immer an seinem Platz
+  delete pos.blatt;
+  const WINS = { top: ".top", konto: ".corner", zoom: ".mapctl", blatt: ".panel", tabs: ".tabs" };
+  const M = 8; // Mindestabstand zum Rand
+  const saveAll = () => save(KEY, Object.fromEntries(Object.entries(pos).filter(([n]) => KEEP(n))));
+
+  function apply(name, el){
+    const p = pos[name];
+    if (small() || !p){ el.style.translate = ""; return; }
+    el.style.translate = `${p.x}px ${p.y}px`;
+  }
+  // Fenster komplett im Bild halten. Gemessen ohne die Animation des Blatts (offsetLeft/Width).
+  function clamp(name, el){
+    const p = pos[name]; if (!p || small()) return;
+    const l = el.offsetLeft, t = el.offsetTop, w = el.offsetWidth, h = el.offsetHeight;
+    const r = getComputedStyle(el).transform; // Tab-Leiste ist per translateX(-50%) zentriert
+    const tx = r && r !== "none" && !el.classList.contains("panel") ? new DOMMatrix(r).m41 : 0;
+    p.x = Math.min(Math.max(p.x, M - l - tx), innerWidth - M - l - tx - w);
+    p.y = Math.min(Math.max(p.y, M - t), innerHeight - M - t - h);
+    apply(name, el);
+  }
+
+  for (const [name, sel] of Object.entries(WINS)){
+    const el = document.querySelector(sel); if (!el) continue;
+    el.classList.add("mv");
+    const g = document.createElement("button");
+    g.type = "button"; g.className = "grip";
+    g.title = "Ziehen zum Verschieben · Doppelklick: zurücksetzen";
+    g.setAttribute("aria-label", "Fenster verschieben");
+    el.prepend(g);
+    apply(name, el);
+
+    let start = null;
+    const down = e => {
+      if (small() || e.button !== 0) return;
+      if (e.currentTarget !== g && e.target.closest("button,a,input,select,textarea")) return;
+      const p = pos[name] || { x: 0, y: 0 };
+      start = { x: e.clientX, y: e.clientY, px: p.x, py: p.y, moved: false, id: e.pointerId, src: e.currentTarget };
+      e.currentTarget.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    };
+    const move = e => {
+      if (!start || e.pointerId !== start.id) return;
+      const dx = e.clientX - start.x, dy = e.clientY - start.y;
+      if (!start.moved && Math.hypot(dx, dy) < 4) return;
+      start.moved = true; el.classList.add("dragging");
+      pos[name] = { x: start.px + dx, y: start.py + dy };
+      clamp(name, el);
+    };
+    const up = e => {
+      if (!start || e.pointerId !== start.id) return;
+      if (start.moved){ saveAll(); if (name === "blatt") dispatchEvent(new Event("resize")); }
+      el.classList.remove("dragging"); start = null;
+    };
+    for (const t of name === "top" ? [g, el] : [g]){
+      t.addEventListener("pointerdown", down);
+      t.addEventListener("pointermove", move);
+      t.addEventListener("pointerup", up);
+      t.addEventListener("pointercancel", up);
+    }
+    g.addEventListener("click", e => e.stopPropagation());
+    g.addEventListener("dblclick", e => { e.stopPropagation(); delete pos[name]; saveAll(); apply(name, el); dispatchEvent(new Event("resize")); });
+    // Inhalt des Blatts wechselt seine Höhe: trotzdem im Bild bleiben
+    new ResizeObserver(() => clamp(name, el)).observe(el);
+  }
+  // Seitenblatt geschlossen: nach der Schließ-Animation zurück an den Ursprungsort
+  const sheet = document.querySelector(".panel");
+  let wasOpen = document.body.classList.contains("sheet-open"), back = 0;
+  new MutationObserver(() => {
+    const open = document.body.classList.contains("sheet-open");
+    if (wasOpen && !open && pos.blatt){
+      clearTimeout(back);
+      back = setTimeout(() => { if (!document.body.classList.contains("sheet-open")){ delete pos.blatt; apply("blatt", sheet); } }, 450);
+    }
+    if (open) clearTimeout(back);
+    wasOpen = open;
+  }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+  addEventListener("resize", () => {
+    for (const [name, sel] of Object.entries(WINS)){ const el = document.querySelector(sel); if (el){ apply(name, el); clamp(name, el); } }
+  });
+
+  // Vorschaufenster: am Griff oben rechts größer/kleiner ziehen (unten links bleibt stehen)
+  const pv = document.getElementById("pv"), rs = document.getElementById("pvRs");
+  const setW = w => { if (w) pv.style.setProperty("--pvw", Math.round(w) + "px"); else pv.style.removeProperty("--pvw"); };
+  setW(load(PVKEY));
+  let rz = null;
+  rs.addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    const r = pv.getBoundingClientRect();
+    rz = { id: e.pointerId, left: r.left, bottom: r.bottom, ratio: r.height / r.width };
+    rs.setPointerCapture(e.pointerId); pv.classList.add("resizing"); e.preventDefault(); e.stopPropagation();
+  });
+  rs.addEventListener("pointermove", e => {
+    if (!rz || e.pointerId !== rz.id) return;
+    const maxW = Math.min(innerWidth - rz.left - 14, (rz.bottom - 14) / rz.ratio);
+    setW(Math.max(260, Math.min(maxW, e.clientX - rz.left)));
+  });
+  const end = e => {
+    if (!rz || e.pointerId !== rz.id) return;
+    rz = null; pv.classList.remove("resizing");
+    save(PVKEY, parseFloat(pv.style.getPropertyValue("--pvw")) || null);
+  };
+  rs.addEventListener("pointerup", end); rs.addEventListener("pointercancel", end);
+  rs.addEventListener("click", e => e.stopPropagation());
+  rs.addEventListener("dblclick", e => { e.stopPropagation(); setW(null); save(PVKEY, null); });
 })();
 </script>
 </body>

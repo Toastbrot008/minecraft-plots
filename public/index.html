@@ -481,7 +481,12 @@ const isMine = c => !!c && c.memberIds.includes(S.uid);
 const myClaim = () => S.uid ? S.claims.find(isMine) : null;
 const memberList = s => cleanMembers(s).split(", ").filter(Boolean);
 // Wer das Formular ausfüllt, ist immer dabei und zählt mit
-const teamSize = text => new Set([S.meName.toLowerCase(), ...memberList(text).map(n => n.toLowerCase())]).size;
+const teamTotal = text => new Set([S.meName.toLowerCase(), ...memberList(text).map(n => n.toLowerCase())]).size;
+// Für die Grenzlänge zählen nur, wer schon im Team ist; neu Eingetragene sind erst eingeladen
+const teamSize = text => {
+  const c = myClaim(), ok = new Set(c ? memberList(c.members).map(n => n.toLowerCase()) : []);
+  return new Set([S.meName.toLowerCase(), ...memberList(text).map(n => n.toLowerCase()).filter(n => ok.has(n))]).size;
+};
 const claimsOpen = () => {
   if (!S.settings.open) return false;
   if (S.settings.deadline && new Date(S.settings.deadline) < new Date()) return false;
@@ -1102,22 +1107,29 @@ function showGate(user, me){
     not_configured: "Die Discord-Anmeldung ist noch nicht eingerichtet."
   };
   const loggedOut = url.searchParams.has("logged_out");
-  let asAdmin = url.searchParams.has("admin");
+  const pwMode = !me.discordEnabled;          // ohne Discord: alle melden sich mit Name + Passwort an
+  let asAdmin = url.searchParams.has("admin") || pwMode, register = false;
   // Normalfall: gleich zu Discord. Die Seite erscheint nur nach einem Fehler, nach dem Abmelden oder für den Admin
   if (me.discordEnabled && !code && !loggedOut && !asAdmin){ location.replace("/api/discord/login"); return; }
   history.replaceState(null, "", url.pathname);
   const setMode = () => {
-    $("#gLead").textContent = asAdmin ? "Anmeldung für das Admin-Konto." : loggedOut ? "Du bist abgemeldet." : me.discordEnabled ? LEAD : "Die Discord-Anmeldung ist noch nicht eingerichtet. Der Admin kann sich trotzdem anmelden.";
-    $("#gDiscord").hidden = asAdmin || !me.discordEnabled;
+    $("#gLead").textContent = pwMode
+      ? (register ? "Neues Konto: dein Minecraft-Name und ein Passwort (mind. 8 Zeichen)." : loggedOut ? "Du bist abgemeldet." : "Melde dich mit deinem Minecraft-Namen an.")
+      : asAdmin ? "Anmeldung für das Admin-Konto." : loggedOut ? "Du bist abgemeldet." : LEAD;
+    $("#gDiscord").hidden = asAdmin;
     $("#gAdmin").hidden = !asAdmin;
     $("#gName").required = $("#gPw").required = asAdmin;
-    $("#gSwap").textContent = asAdmin ? "Zurück zur Discord-Anmeldung" : "Als Admin anmelden";
+    $("#gName").previousElementSibling.textContent = pwMode ? "Minecraft-Name" : "Admin-Name";
+    $("#gPw").autocomplete = register ? "new-password" : "current-password";
+    $("#gateForm").querySelector("button[type=submit]").textContent = register ? "Konto anlegen" : "Anmelden";
+    $("#gSwap").textContent = pwMode ? (register ? "Ich habe schon ein Konto" : "Neues Konto anlegen")
+      : asAdmin ? "Zurück zur Discord-Anmeldung" : "Als Admin anmelden";
   };
-  $("#gSwap").onclick = e => { e.preventDefault(); asAdmin = !asAdmin; showErr(""); setMode(); if (asAdmin) $("#gName").focus(); };
+  $("#gSwap").onclick = e => { e.preventDefault(); if (pwMode) register = !register; else asAdmin = !asAdmin; showErr(""); setMode(); if (asAdmin) $("#gName").focus(); };
   $("#gateForm").onsubmit = async e => {
     e.preventDefault();
     if (!asAdmin) return;
-    try{ await user.login({ name: $("#gName").value, password: $("#gPw").value }); location.replace("/"); }
+    try{ await (register ? user.register : user.login)({ name: $("#gName").value, password: $("#gPw").value }); location.replace("/"); }
     catch(err){ showErr(err.serverMsg || "Das hat nicht geklappt. Versuch es gleich noch einmal."); $("#gPw").value = ""; }
   };
   setMode(); showErr(ERR[code] || "");
@@ -1128,11 +1140,11 @@ function setupAuth(me){
   btn.textContent = me.name;
   btn.onclick = () => $("#acctDlg").showModal();
   $("#acctName").textContent = me.name;
-  $("#pwForm").hidden = $("#acctSep").hidden = !me.isAdmin;
+  $("#pwForm").hidden = $("#acctSep").hidden = !me.hasPassword;
   $("#acctHint").hidden = !me.mustChange;
   $("#acctClose").onclick = () => $("#acctDlg").close();
   $("#acctLogout").onclick = async () => { try{ await S.user.logout(); location.replace("/?logged_out=1"); }catch(e){ toast(errMsg(e)); } };
-  if (!me.isAdmin) return;
+  if (!me.hasPassword) return;
   $("#pwForm").onsubmit = async e => {
     e.preventDefault();
     try{
@@ -1255,6 +1267,7 @@ async function resolveNames(){
 function claimFacts(c){
   return `<dt>Spieler</dt><dd>${c.players}</dd>
     ${c.members ? `<dt>Team</dt><dd>${esc(c.members)}</dd>` : ""}
+    ${c.invited ? `<dt>Eingeladen</dt><dd>${esc(c.invited)}</dd>` : ""}
     <dt>Mitte</dt><dd>X ${c.cx}, Z ${c.cz}</dd>
     <dt>Grenzlänge</dt><dd>ca. ${fmt(c.perim)} Blöcke</dd>
     <dt>Fläche</dt><dd>ca. ${fmt(c.area)} Blöcke²</dd>`;
@@ -1321,7 +1334,7 @@ function newDraft(from){
   return {
     team: from ? from.team : "",
     color: from ? from.color : (COLORS.find(c => !used.has(c)) || COLORS[0]),
-    members: from ? memberList(from.members).filter(n => n.toLowerCase() !== S.meName.toLowerCase()).join(", ") : "",
+    members: from ? memberList([from.members, from.invited].filter(Boolean).join(", ")).filter(n => n.toLowerCase() !== S.meName.toLowerCase()).join(", ") : "",
     note: from ? from.note || "" : ""
   };
 }
@@ -1366,6 +1379,20 @@ function renderMine(){
     return;
   }
 
+  const invites = mine ? [] : S.claims.filter(c => c.inviteIds.includes(S.uid));
+  if (invites.length && !S.skipInvites){
+    el.innerHTML = `<h2>Einladungen</h2><p class="lead">Du wurdest in ein Team eingetragen. Nimmst du an, gehörst du zu diesem Gebiet und kannst kein eigenes mehr erstellen.</p>` +
+      invites.map(c => `<div class="detail" style="--c:${esc(c.color)}"><h2>${esc(c.team)}</h2><dl>${claimFacts(c)}</dl>
+        <div class="btns"><button class="btn small primary" data-acc="${esc(c.id)}">Annehmen</button><button class="btn small" data-dec="${esc(c.id)}">Ablehnen</button></div></div>`).join("") +
+      (open ? `<div class="btns"><button class="btn small" id="iOwn">Lieber ein eigenes Gebiet claimen</button></div>` : "");
+    el.querySelectorAll("[data-acc]").forEach(b => b.onclick = async () => {
+      try{ await S.user.answerInvite(b.dataset.acc, true); toast("Willkommen im Team"); }catch(e){ toast(errMsg(e)); } });
+    el.querySelectorAll("[data-dec]").forEach(b => b.onclick = async () => {
+      try{ await S.user.answerInvite(b.dataset.dec, false); toast("Einladung abgelehnt"); }catch(e){ toast(errMsg(e)); } });
+    const own = $("#iOwn"); if (own) own.onclick = () => { S.skipInvites = true; renderMine(); };
+    return;
+  }
+
   if (!open && !mine){ el.innerHTML = `<h2>Mein Gebiet</h2><div class="note info">Das Claimen ist gerade geschlossen. Schau dir trotzdem an, wo die anderen Teams bauen.</div>`; return; }
 
   if (!S.draft) S.draft = newDraft();
@@ -1374,12 +1401,13 @@ function renderMine(){
     const budget = budgetFor(teamSize(d.members)), side = budget / 4;
     return `${budgetIcon(d.color)}<div><b>${fmt(budget)} Blöcke Grenzlänge</b><span>So lang darf eure Grenze insgesamt sein. Das reicht z. B. für ein Quadrat von ${fmt(side)} × ${fmt(side)} Blöcken. Mehr Spieler, mehr Grenze.</span></div>`;
   };
-  const countText = () => `${teamSize(d.members)} von ${st.maxPlayers} Spielern`;
+  const countText = () => { const inv = teamTotal(d.members) - teamSize(d.members);
+    return `${teamSize(d.members)} von ${st.maxPlayers} Spielern${inv ? ` + ${inv} eingeladen` : ""}`; };
   let html = `<h2>${d.editing ? "Gebiet bearbeiten" : "Gebiet claimen"}</h2>
   <p class="lead">${d.editing ? "Ändert Name, Mitglieder oder Farbe." : "Gebt euer Team an, dann zieht ihr eure Grenzen direkt auf der Karte."}</p>
   <label class="f"><span>Teamname</span><input type="text" id="fTeam" maxlength="32" value="${esc(d.team)}" placeholder="z. B. Die Redstone-Bande" autocomplete="off"></label>
   <label class="f"><span>Weitere Mitglieder</span><input type="text" id="fMembers" maxlength="400" value="${esc(d.members)}" placeholder="Namen tippen oder aus der Liste wählen">
-    <small>Du (${esc(S.meName)}) bist automatisch dabei. Alle Eingetragenen gehören zu diesem Gebiet und können kein eigenes mehr erstellen. Eintragen kannst du jeden, der sich schon einmal angemeldet hat. <b id="fCount">${countText()}</b></small></label>
+    <small>Du (${esc(S.meName)}) bist automatisch dabei. Neu Eingetragene bekommen eine Einladung und sind erst im Team (und zählen für die Grenzlänge), wenn sie annehmen. Eintragen kannst du jeden, der sich schon einmal angemeldet hat. <b id="fCount">${countText()}</b></small></label>
   <div class="sizebox" id="fSize">${sizeHtml()}</div>
   <label class="f"><span>Teamfarbe</span></label>
   <div class="colors" role="group" aria-label="Teamfarbe" style="margin:-8px 0 16px">${COLORS.map(c => `<button type="button" style="background:${c}" data-c="${c}" aria-pressed="${c === d.color}" aria-label="Farbe ${c}"></button>`).join("")}</div>
@@ -1408,7 +1436,7 @@ function renderMine(){
       const other = S.claims.find(c => c.id !== cur && memberList(c.members).some(x => x.toLowerCase() === low));
       if (other) return "„" + n + "“ ist schon im Team „" + other.team + "“.";
     }
-    const size = teamSize(d.members);
+    const size = teamTotal(d.members);
     if (size > st.maxPlayers) return "Ein Team darf höchstens " + st.maxPlayers + " Spieler haben, ihr wärt " + size + ".";
     if (size < st.minPlayers) return "Ein Team braucht mindestens " + st.minPlayers + " Spieler, ihr seid " + size + ".";
     return null;
@@ -1601,7 +1629,8 @@ function normClaim(id, v){
     id, pts, bb: bbox(pts), area: area(pts), perim: perim(pts, true), cx: Math.round(c[0]), cz: Math.round(c[1]),
     memberIds: Array.isArray(v.memberIds) && v.memberIds.length ? v.memberIds : [id],
     team: String(v.team || "Team"), players: Math.max(1, +v.players || 1), color: COLORS.includes(v.color) ? v.color : "#F4C04E",
-    members: String(v.members || ""), note: String(v.note || ""), status: v.status === "pending" ? "pending" : "approved"
+    members: String(v.members || ""), note: String(v.note || ""),
+    inviteIds: Array.isArray(v.inviteIds) ? v.inviteIds : [], invited: String(v.invited || ""), status: v.status === "pending" ? "pending" : "approved"
   };
 }
 function onClaims(snap){

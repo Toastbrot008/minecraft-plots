@@ -31,21 +31,35 @@ old/                   Stand vor dem Zusammenführen (alte Plot-Seite, Original-
 
 ## Accounts
 
-Spieler melden sich über **Discord** an (OAuth2, nur Scope `identify`: ID + Name, keine E-Mail).
-Beim ersten Login entsteht automatisch ein Konto, das über die Discord-ID fest zugeordnet bleibt.
-Der Admin meldet sich mit Name + Passwort an. Ohne Anmeldung liefert der Server nur die
-Anmeldeseite aus.
+**Mit Discord** (wenn `config.json` oder die Umgebungsvariablen gesetzt sind): Spieler melden sich
+über Discord an (OAuth2, nur Scope `identify`: ID + Name, keine E-Mail). Beim ersten Login entsteht
+automatisch ein Konto, das über die Discord-ID fest zugeordnet bleibt.
+
+**Ohne Discord:** Spieler legen auf der Anmeldeseite selbst ein Konto an (Minecraft-Name + Passwort).
+
+Der Admin meldet sich immer mit Name + Passwort an (Link „Als Admin anmelden“ bzw. `/?admin`).
+Gibt es `admin_token.txt` aus der alten Version, wird dessen Inhalt beim ersten Start das
+Admin-Passwort. Zusätzlich bekommen Discord-IDs unter `admins` in `config.json` Admin-Rechte.
+Ohne Anmeldung liefert der Server nur die Anmeldeseite aus.
 
 Discord einrichten:
 
 1. Auf https://discord.com/developers/applications eine App anlegen (*New Application*).
 2. Unter *OAuth2* die **Client ID** und das **Client Secret** kopieren und bei *Redirects*
-   `<öffentliche Adresse>/api/discord/callback` eintragen.
-3. Server mit den Umgebungsvariablen starten:
-   ```
-   DISCORD_CLIENT_ID=… DISCORD_CLIENT_SECRET=… \
-   DISCORD_REDIRECT_URI=https://<adresse>/api/discord/callback python3 server.py
-   ```
+   `<öffentliche Adresse>/auth/discord/callback` eintragen.
+3. `config.example.json` nach `config.json` kopieren und ausfüllen (`public_url` = dieselbe Adresse
+   ohne `/auth/...`; leer = Adresse aus dem Host-Header). Alternativ Umgebungsvariablen
+   `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI` (haben Vorrang).
+
+`config.json` enthält das Client Secret und ist deshalb nicht im Repo.
+
+## Teams
+
+Wer ein Gebiet erstellt, kann weitere Spieler eintragen. Die bekommen eine **Einladung** unter
+„Mein Gebiet“ und sind erst nach dem Annehmen im Team. Erst dann zählen sie für die erlaubte
+Grenzlänge (für Min./Max. Spieler zählen Eingeladene schon mit). Konten aus der Version vor dem
+neuen Design (`users` mit `discord`/`login`) werden beim Start automatisch übernommen, Gebiete
+behalten ihren Besitzer.
 
 ## Was der Server prüft
 

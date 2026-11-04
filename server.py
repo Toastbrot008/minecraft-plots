@@ -35,6 +35,9 @@ PUBLIC = os.path.join(ROOT, "public")
 DATA = os.path.join(ROOT, "data.json")
 UPLOADS = os.path.join(ROOT, "uploads")
 OLD_CLAIMS = os.path.join(ROOT, "claims.json")      # Format der alten Rechteck-Plots
+CONFIG_FILE = os.path.join(ROOT, "config.json")     # Discord-Zugang (optional, nicht im Repo)
+TOKEN_FILE = os.path.join(ROOT, "admin_token.txt")  # altes Admin-Passwort, wird beim ersten Start übernommen
+CALLBACK_PATH = "/auth/discord/callback"            # so in der Discord-App eingetragen
 
 DEFAULTS = {
     "title": "EL-SMP Season 5",
@@ -56,7 +59,8 @@ PW_ITERATIONS = 300_000
 SESSION_DAYS = 30
 COOKIE = "elsmp_session"
 OPEN_PATHS = {"/", "/index.html", "/backend.js", "/api/me", "/favicon.ico",     # ohne Anmeldung erreichbar
-              "/api/discord/login", "/api/discord/callback"}
+              "/api/discord/login", "/api/discord/callback", CALLBACK_PATH,
+              "/api/register", "/api/login"}
 DISCORD_API = "https://discord.com/api/v10"
 DISCORD_AUTHORIZE = "https://discord.com/oauth2/authorize"
 STATE_COOKIE = "elsmp_oauth"
@@ -76,9 +80,27 @@ class ApiError(Exception):
 def load():
     try:
         with open(DATA, encoding="utf-8") as f:
-            return json.load(f)
+            return upgrade(json.load(f))
     except FileNotFoundError:
         return migrate()
+
+
+def upgrade(db):
+    """Daten aus der Version vor den Konten (Browser-/Discord-Konten {name, discord, login})
+    ins neue Format bringen. Die Konto-IDs bleiben gleich, damit Gebiete ihren Besitzer behalten."""
+    db.setdefault("users", {})
+    for uid, u in db["users"].items():
+        if "role" in u:
+            continue
+        did = u.pop("discord", None)
+        login = u.pop("login", None)
+        u.update({"pw": None, "role": "player", "active": True, "gen": 0, "mustChange": False,
+                  "createdAt": int((login or time.time()) * 1000), "uuid": "",
+                  "discordId": str(did) if did else None, "paid": True, "listed": True})
+    for c in db.get("claims", {}).values():
+        c.setdefault("inviteIds", [])
+        c.setdefault("invited", "")
+    return db
 
 
 def save(db):
@@ -212,9 +234,38 @@ def note_fail(key):
 
 
 # ------------------------------------------------------------------ Discord-Anmeldung
-def discord_config():
-    cid, secret, redirect = (os.environ.get(k) for k in ("DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_REDIRECT_URI"))
+def file_config():
+    """config.json (aus der Version davor): {"public_url", "discord": {client_id, client_secret}, "admins"}."""
+    try:
+        with open(CONFIG_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+CONFIG = file_config()
+DISCORD_ADMINS = {str(a) for a in CONFIG.get("admins", [])}   # Discord-IDs, die Admin-Rechte bekommen
+
+
+def discord_config(host=None):
+    """Umgebungsvariablen haben Vorrang, sonst config.json. Ohne public_url wird die Adresse aus
+    dem Host-Header gebaut (wie in der alten Version)."""
+    d = CONFIG.get("discord", {})
+    cid = os.environ.get("DISCORD_CLIENT_ID") or d.get("client_id")
+    secret = os.environ.get("DISCORD_CLIENT_SECRET") or d.get("client_secret")
+    redirect = os.environ.get("DISCORD_REDIRECT_URI")
+    if not redirect:
+        base = (os.environ.get("PUBLIC_URL") or CONFIG.get("public_url") or "").rstrip("/")
+        if not base and host:
+            base = "http://" + host
+        redirect = base + CALLBACK_PATH if base else None
     return (cid, secret, redirect) if cid and secret and redirect else None
+
+
+def discord_enabled():
+    d = CONFIG.get("discord", {})
+    return bool((os.environ.get("DISCORD_CLIENT_ID") or d.get("client_id")) and
+                (os.environ.get("DISCORD_CLIENT_SECRET") or d.get("client_secret")))
 
 
 def discord_request(url, data=None, token=None):
@@ -258,6 +309,10 @@ def ensure_admin(reset=False):
         if uid and not reset:
             return
         given = os.environ.get("ADMIN_PASSWORD")
+        if not given and not uid and os.path.isfile(TOKEN_FILE):
+            given = open(TOKEN_FILE, encoding="utf-8").read().strip() or None
+            if given:
+                print("Admin-Passwort aus admin_token.txt übernommen")
         pw = given or new_password()
         if uid:
             u = db["users"][uid]
@@ -382,19 +437,29 @@ def team_of(db, uid):
     return None, None
 
 
-def set_members(db, c, ids):
+def names_of(db, ids):
+    return ", ".join(db["users"][i]["name"] for i in ids if i in db["users"] and db["users"][i]["role"] != "admin")
+
+
+def set_members(db, c, ids, invites=None):
+    """memberIds = im Team (zählen für Spielerzahl und Grenzlänge), inviteIds = eingeladen, noch nicht angenommen."""
     c["memberIds"] = ids
-    c["members"] = ", ".join(db["users"][i]["name"] for i in ids if i in db["users"] and db["users"][i]["role"] != "admin")
+    c["members"] = names_of(db, ids)
+    inv = [i for i in (c.get("inviteIds", []) if invites is None else invites) if i not in ids]
+    c["inviteIds"] = inv
+    c["invited"] = names_of(db, inv)
 
 
-def resolve_members(db, cid, text, editor):
-    """Macht aus den eingetragenen Namen Konten. Ersteller und Bearbeiter sind immer dabei,
-    niemand darf in zwei Teams stehen."""
-    ids = []
+def resolve_members(db, cid, text, editor, current=()):
+    """Macht aus den eingetragenen Namen Konten. Ersteller und Bearbeiter sind immer dabei.
+    Wer neu eingetragen wird, ist erst eingeladen und muss selbst annehmen (editor=None: Admin trägt direkt ein).
+    Gibt (Mitglieder, Eingeladene) zurück. Niemand darf in zwei Teams stehen."""
+    ids, invites = [], []
     for uid in (cid, editor):
         u = db["users"].get(uid)
         if u and u["role"] != "admin" and uid not in ids:
             ids.append(uid)
+    wanted = []
     for raw in text.split(","):
         name = raw.strip()
         if not name:
@@ -402,13 +467,17 @@ def resolve_members(db, cid, text, editor):
         uid, u = find_user(db, name)
         if not u or u["role"] == "admin":
             raise ApiError("invalid", f"„{name}“ hat sich noch nie angemeldet.")
-        if uid not in ids:
-            ids.append(uid)
-    for uid in ids:
+        if uid not in wanted:
+            wanted.append(uid)
+    for uid in wanted:
+        if uid in ids:
+            continue
+        (ids if editor is None or uid in current else invites).append(uid)
+    for uid in ids + invites:
         other, team = team_of(db, uid)
         if other and other != cid:
             raise ApiError("invalid", f"„{db['users'][uid]['name']}“ ist schon im Team „{team['team']}“.")
-    return ids
+    return ids, invites
 
 
 # ------------------------------------------------------------------ Regeln
@@ -473,8 +542,8 @@ def write_claim(db, uid, cid, body, merge, admin):
     old_ids = member_ids(cid, existing) if existing else []
     ids = old_ids
     if "members" in patch or not existing:
-        ids = resolve_members(db, cid, patch.get("members", ""), None if admin else uid)
-        set_members(db, new, ids)
+        ids, invites = resolve_members(db, cid, patch.get("members", ""), None if admin else uid, old_ids)
+        set_members(db, new, ids, invites)
 
     if not admin:
         if not db["users"][uid]["paid"]:
@@ -491,9 +560,12 @@ def write_claim(db, uid, cid, body, merge, admin):
             raise ApiError("invalid", f"Den Teamnamen „{dup['team']}“ gibt es schon.")
         # Die Spielerzahl zählt der Server selbst, sie bestimmt auch die erlaubte Grenzlänge
         new["players"] = len(ids)
-        if not st["minPlayers"] <= new["players"] <= st["maxPlayers"]:
-            raise ApiError("invalid", f"Erlaubt sind {st['minPlayers']} bis {st['maxPlayers']} Spieler pro Team, "
-                                      f"ihr wärt {new['players']}.")
+        # Eingeladene zählen für Min./Max. mit (sonst könnte ein neues Team nie entstehen),
+        # für die Grenzlänge aber erst, wenn sie angenommen haben
+        total = new["players"] + len(new.get("inviteIds", []))
+        if not st["minPlayers"] <= total <= st["maxPlayers"]:
+            raise ApiError("invalid", f"Erlaubt sind {st['minPlayers']} bis {st['maxPlayers']} Spieler pro Team "
+                                      f"(mit Eingeladenen), ihr wärt {total}.")
         if new.get("color") not in COLORS:
             raise ApiError("invalid", "Bitte eine Teamfarbe wählen.")
         pts = [(p["x"], p["z"]) for p in new.get("pts", [])]
@@ -596,7 +668,7 @@ class Handler(SimpleHTTPRequestHandler):
         if token is None:
             return None, False
         uid, u = session_user(db, token)
-        return uid, bool(u and u["role"] == "admin")
+        return uid, bool(u and (u["role"] == "admin" or (u.get("discordId") and u["discordId"] in DISCORD_ADMINS)))
 
     def redirect(self, location, *cookies):
         self.send_response(302)
@@ -647,7 +719,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(401, {"code": "login", "error": "Bitte melde dich an."})
         if path == "/api/discord/login":
             return self.discord_login()
-        if path == "/api/discord/callback":
+        if path in ("/api/discord/callback", CALLBACK_PATH):
             return self.discord_callback()
         if path == "/api/state":
             return self.api(self.get_state)
@@ -676,7 +748,8 @@ class Handler(SimpleHTTPRequestHandler):
         u = db["users"].get(uid) if uid else None
         self.send_json(200, {"id": uid, "isAdmin": admin, "name": u["name"] if u else None,
                              "mustChange": bool(u and u["mustChange"]), "paid": bool(u and u["paid"]),
-                             "discordEnabled": bool(discord_config())})
+                             "discordEnabled": discord_enabled(),
+                             "hasPassword": bool(u and u.get("pw"))})
 
     def get_users(self):
         with lock:
@@ -720,18 +793,21 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         routes = {"/api/map": self.upload_map, "/api/login": self.login, "/api/logout": self.logout,
-                  "/api/password": self.change_password}
+                  "/api/password": self.change_password,
+                  "/api/register": self.register}
         if self.path in routes:
             return self.api(routes[self.path])
         if m := re.fullmatch(r"/api/claims/([0-9a-f]{16})/owner", self.path):
             return self.api(lambda: self.move_claim(m.group(1)))
         if m := re.fullmatch(r"/api/claims/([0-9a-f]{16})/leave", self.path):
             return self.api(lambda: self.leave_team(m.group(1)))
+        if m := re.fullmatch(r"/api/claims/([0-9a-f]{16})/(accept|decline)", self.path):
+            return self.api(lambda: self.answer_invite(m.group(1), m.group(2) == "accept"))
         self.send_json(404, {"code": "not_found", "error": "Nicht gefunden"})
 
     # --- Anmeldung
     def discord_login(self):
-        cfg = discord_config()
+        cfg = discord_config(self.headers.get("Host"))
         if not cfg:
             return self.redirect("/?login_error=not_configured")
         state = secrets.token_urlsafe(24)
@@ -746,7 +822,7 @@ class Handler(SimpleHTTPRequestHandler):
         state, expected = q.get("state", [""])[0], self.cookie(STATE_COOKIE)
         if not state or not expected or not hmac.compare_digest(state.encode(), expected.encode()):
             return fail("state")
-        cfg = discord_config()
+        cfg = discord_config(self.headers.get("Host"))
         if not cfg:
             return fail("not_configured")
         if "code" not in q:
@@ -765,8 +841,28 @@ class Handler(SimpleHTTPRequestHandler):
             token = session_token(db, uid)
         self.redirect("/", clear, self.cookie_header(token))
 
+    def register(self):
+        """Ohne Discord: Spieler legen selbst ein Konto mit Minecraft-Name + Passwort an."""
+        if discord_enabled():
+            raise ApiError("forbidden", "Bitte melde dich mit Discord an.", 403)
+        body = self.json_body()
+        name, pw = clean_name(body.get("name")), clean_password(body.get("password"))
+        key = (self.client_address[0], "#register")
+        if too_many_fails(key):
+            raise ApiError("rate_limited", "Zu viele neue Konten. Versuch es in ein paar Minuten noch einmal.", 429)
+        pw_hash = hash_pw(pw)
+        with lock:
+            db = load()
+            if find_user(db, name)[1]:
+                raise ApiError("invalid", f"Den Namen „{name}“ gibt es schon. Melde dich an oder nimm einen anderen.")
+            uid = add_user(db, name, pw_hash)
+            save(db)
+            token = session_token(db, uid)
+        note_fail(key)                               # zählt neue Konten pro IP (max. MAX_FAILS in FAIL_WINDOW)
+        self.send_json(200, {"ok": True}, cookie=token)
+
     def login(self):
-        """Nur für das Admin-Konto, Spieler melden sich über Discord an."""
+        """Admin-Konto und Spieler mit Passwort (ohne Discord). Discord-Konten haben kein Passwort."""
         body = self.json_body()
         name, pw = body.get("name"), body.get("password")
         wrong = ApiError("wrong_login", "Name oder Passwort falsch.", 401)
@@ -780,8 +876,8 @@ class Handler(SimpleHTTPRequestHandler):
             db = load()
         uid, u = find_user(db, name)
         # Hash außerhalb des Locks: dauert absichtlich lang und soll niemanden sonst aufhalten
-        is_admin = bool(u and u["role"] == "admin")
-        if not check_pw(pw, u["pw"] if is_admin else DUMMY_HASH) or not is_admin:
+        has_pw = bool(u and u.get("pw") and u["active"])
+        if not check_pw(pw, u["pw"] if has_pw else DUMMY_HASH) or not has_pw:
             note_fail(key)
             raise wrong
         with fails_lock:
@@ -797,9 +893,9 @@ class Handler(SimpleHTTPRequestHandler):
         old = body.get("old")
         with lock:
             db = load()
-        uid, admin = self.who(db)
-        if not admin:
-            raise ApiError("forbidden", "Nur das Admin-Konto hat ein Passwort.", 403)
+        uid, _ = self.who(db)
+        if not uid or not db["users"][uid].get("pw"):
+            raise ApiError("forbidden", "Dieses Konto hat kein Passwort (Anmeldung über Discord).", 403)
         if not isinstance(old, str) or not check_pw(old, db["users"][uid]["pw"]):
             raise ApiError("wrong_login", "Das aktuelle Passwort stimmt nicht.", 403)
         pw_hash = hash_pw(new)
@@ -864,6 +960,33 @@ class Handler(SimpleHTTPRequestHandler):
             ids = [i for i in member_ids(cid, c) if i != uid]
             set_members(db, c, ids)
             c["players"] = len(ids)
+            save(db)
+        self.send_json(200, {"ok": True})
+
+    def answer_invite(self, cid, accept):
+        """Eingeladene nehmen an (kommen ins Team) oder lehnen ab."""
+        with lock:
+            db = load()
+            uid, _ = self.who(db)
+            c = db["claims"].get(cid)
+            if not uid or not c or uid not in c.get("inviteIds", []):
+                raise ApiError("not_found", "Diese Einladung gibt es nicht mehr.", 404)
+            if accept:
+                other, team = team_of(db, uid)
+                if other:
+                    raise ApiError("invalid", f"Du bist schon im Team „{team['team']}“. Verlass es zuerst.")
+                if not claims_open(db["settings"]):
+                    raise ApiError("closed", "Das Claimen ist geschlossen. Frag einen Admin.", 403)
+                ids = member_ids(cid, c) + [uid]
+                if len(ids) > db["settings"]["maxPlayers"]:
+                    raise ApiError("invalid", f"Das Team ist schon voll ({db['settings']['maxPlayers']} Spieler).")
+                set_members(db, c, ids)
+                c["players"] = len(ids)
+                for k, o in db["claims"].items():          # andere Einladungen erledigen sich damit
+                    if k != cid and uid in o.get("inviteIds", []):
+                        set_members(db, o, member_ids(k, o), [i for i in o["inviteIds"] if i != uid])
+            else:
+                set_members(db, c, member_ids(cid, c), [i for i in c["inviteIds"] if i != uid])
             save(db)
         self.send_json(200, {"ok": True})
 

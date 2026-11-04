@@ -87,11 +87,13 @@
     },
     me: getMe,
     login: data => call("POST", "/api/login", data),
+    register: data => call("POST", "/api/register", data),
     logout: () => call("POST", "/api/logout"),
     changePassword: (old, neu) => call("POST", "/api/password", { old, new: neu }),
     accounts: async () => (await call("GET", "/api/users")).users,
     names: async () => (await call("GET", "/api/names")).names,
     updateAccount: (id, patch) => call("PATCH", "/api/users/" + id, patch),
+    answerInvite: async (cid, accept) => { await call("POST", "/api/claims/" + cid + (accept ? "/accept" : "/decline")); await refresh(); },
     leaveTeam: async cid => { await call("POST", "/api/claims/" + cid + "/leave"); await refresh(); },
     moveClaim: async (cid, uid) => { await call("POST", "/api/claims/" + cid + "/owner", { uid }); await refresh(); },
   };
